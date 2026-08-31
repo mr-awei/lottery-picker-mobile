@@ -1,0 +1,6 @@
+/build/*
+!/build/.npmkeep
+
+# Release signing — NEVER commit the keystore or signing secrets
+lottery-release-key.jks
+release-signing.properties

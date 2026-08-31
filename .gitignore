@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+android/app/build/
+android/build/
+android/capacitor-cordova-android-plugins/build/
+
+# Android
+android/local.properties
+android/.gradle/
+*.jks
+*.keystore
+*.apk
+*.aab
+android/app/capacitor.build.gradle
+android/app/capacitor.settings.gradle
+android/app/src/main/assets/public/assets/
+android/app/src/main/assets/public/snapshots/
+android/app/src/main/assets/public/tessdata/
+android/app/src/main/assets/public/tesseract/
+android/app/src/main/assets/index.html
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
+android/.idea/
+*.iml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / Dev artifacts
+temp/
+*.log
+android/build-err.txt
+android/build-log.txt
+
+# Node cache
+.npm/
+.eslintcache
+
+# Personal env
+.env
+.env.local
+.env.*.local

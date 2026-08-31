@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    {
+      "pkg": "@capacitor/camera",
+      "classpath": "com.capacitorjs.plugins.camera.CameraPlugin",
+      "web": false
+    }
+  ]
+}

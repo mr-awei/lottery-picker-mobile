@@ -1,0 +1,28 @@
+{
+  "name": "lottery-picker-mobile",
+  "version": "1.8.6",
+  "description": "彩票选号器手机版：双色球 + 大乐透，含往期号码、分布图、走势图、最大奖、中奖地图、AI选号、自选号、文本查中奖、知识库、设置",
+  "author": "Marvis",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "cap:sync": "vite build && cap sync android",
+    "cap:apk": "vite build && cap sync android && cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/camera": "^8.2.3",
+    "@capacitor/core": "^8.0.0",
+    "echarts": "^5.5.0",
+    "element-plus": "^2.7.0",
+    "tesseract.js": "^5.1.1",
+    "vue": "^3.4.0",
+    "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.0.0",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.2.0"
+  }
+}

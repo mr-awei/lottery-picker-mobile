@@ -1,0 +1,12 @@
+{
+  "appId": "com.lottery.picker",
+  "appName": "彩票选号器",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0c101e"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
