@@ -21,6 +21,9 @@
     "vue": "^3.4.0",
     "ws": "^8.21.3"
   },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "devDependencies": {
     "@capacitor/cli": "^8.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
