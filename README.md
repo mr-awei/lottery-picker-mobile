@@ -144,6 +144,47 @@ cd android
 > ```
 > 然后在 `android/app/build.gradle` 中配置 `signingConfigs.release.storeFile / storePassword / keyAlias / keyPassword`。
 
+### 多仓库推送与自动构建（GitHub → Gitee）
+
+项目同时托管于 **GitHub**（`origin`）与 **Gitee**（`gitee`），推送一次代码后：
+
+```
+git push                        # ① 只需推到 GitHub
+        │
+        ▼
+GitHub Actions（.github/workflows/android.yml）
+        ├─ ② 自动构建 APK：web 打包 → cap sync → Gradle assembleDebug
+        │     · APK 上传到 Actions Artifacts（每次 push 均可下载）
+        │     · 打 v* 标签时自动发布 GitHub Release（附带 APK）
+        └─ ③ 自动镜像：把 main 分支 + 全部标签同步推送到 Gitee（需 GITEE_TOKEN）
+```
+
+**一次一次性配置（约 5 分钟）**
+
+1. 在 Gitee 创建同名**空仓库** `lottery-picker-mobile`（不要勾选“初始化 README”，否则首推会被拒绝）。
+2. 生成 Gitee 私人令牌：Gitee → 设置 → 安全设置 → **私人令牌** → 生成新令牌，勾选 `projects` 的**读写**权限并复制。
+3. 在 GitHub 仓库 → Settings → Secrets and variables → Actions 中新增 Secret：
+   | Secret 名 | 值 |
+   |---|---|
+   | `GITEE_TOKEN` | 第 2 步复制的 Gitee 私人令牌（必填，镜像到 Gitee 用） |
+   | `ANDROID_KEYSTORE_BASE64` | （可选）Release 签名 keystore 的 base64，用于构建**正式签名**的 `app-release.apk`，且 keystore 别名/密码须与 `android/gradle.properties` 一致 |
+4. 推送到 GitHub 即可：`git push`，之后 Actions 会自动构建并同步 Gitee。
+
+**日常使用**
+
+```bash
+git push                 # 推到 GitHub，Actions 自动构建 APK + 镜像 Gitee
+git push origin v1.9.10  # 打标签：构建 + 发布 GitHub Release
+npm run push:all         # 或本机一次性手动推 GitHub + Gitee 两端（首次会提示输入 Gitee 凭据）
+```
+
+> 想让本地每次 `git push` 都自动双发（GitHub + Gitee），可执行：
+> ```bash
+> git remote set-url --add --push origin git@github.com:mr-awei/lottery-picker-mobile.git
+> git remote set-url --add --push origin https://gitee.com/mr-awei/lottery-picker-mobile.git
+> ```
+> ⚠️ 配置后每次 push 都会尝试推送两端，任一端鉴权失败会让命令以非零退出，请确保两端凭据都有效。
+
 ### 数据来源说明
 
 | 路径 | 说明 |

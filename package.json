@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "cap:sync": "vite build && cap sync android",
-    "cap:apk": "vite build && cap sync android && cd android && gradlew.bat assembleDebug"
+    "cap:apk": "vite build && cap sync android && cd android && gradlew.bat assembleDebug",
+    "push:all": "git push origin --all && git push origin --tags && git push gitee --all && git push gitee --tags"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

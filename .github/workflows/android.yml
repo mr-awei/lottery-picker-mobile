@@ -1,0 +1,148 @@
+# =============================================================================
+# 彩票选号器 · Android 自动构建 + Gitee 自动镜像
+# -----------------------------------------------------------------------------
+# 触发时机：
+#   - push 到 main 分支        → 自动构建 debug APK + 自动镜像同步到 Gitee
+#   - push v* 标签（如 v1.9.10）→ 额外发布 GitHub Release（附带 APK）
+#   - 手动 workflow_dispatch
+#
+# 说明：
+#   1. android/gradle.properties 中写死的本机 JDK 路径（org.gradle.java.home）
+#      在 CI 上无效，构建前会先剔除该行，改用 setup-java 提供的 JDK 21。
+#   2. 默认只构建无需签名的 debug APK（Actions Artifact 可下载安装）。
+#   3. 如需"正式签名"Release APK，请在仓库 Secrets 中配置
+#      ANDROID_KEYSTORE_BASE64（keystore 的 base64，须与本仓库 gradle.properties
+#      中的别名/密码一致），CI 会额外构建并随标签发布 app-release.apk。
+#   4. 镜像到 Gitee 需在 Secrets 中配置 GITEE_TOKEN，未配置时自动跳过。
+# =============================================================================
+name: Android Build & Gitee Mirror
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # 创建 GitHub Release 所需
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1：构建 APK（push 与 tag 都会触发）
+  # ---------------------------------------------------------------------------
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取全部历史/标签，供版本信息使用
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web bundle (Vite)
+        run: npm run build
+
+      - name: Sync Capacitor Android assets
+        run: npx cap sync android
+
+      # android/gradle.properties 里写死的本机 JDK 路径在 CI 上不存在，
+      # 剔除后由 JAVA_HOME（setup-java → JDK 21）接管。
+      - name: Strip machine-specific JDK path for CI
+        run: sed -i '/^org\.gradle\.java\.home=/d' android/gradle.properties
+
+      - name: Build debug APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      # ---- 可选：正式签名 Release APK（需 Secrets: ANDROID_KEYSTORE_BASE64）----
+      - name: Decode release keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/lottery-release-key-v2.jks
+          test -s android/app/lottery-release-key-v2.jks
+
+      - name: Build signed release APK
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload signed release APK artifact
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      # ---- 打 v* 标签时发布 GitHub Release ----
+      - name: Publish GitHub Release (debug APK)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish GitHub Release (signed APK)
+        if: ${{ startsWith(github.ref, 'refs/tags/') && secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+
+  # ---------------------------------------------------------------------------
+  # Job 2：push 成功后自动镜像到 Gitee（未配置 GITEE_TOKEN 时自动跳过）
+  # ---------------------------------------------------------------------------
+  sync-gitee:
+    name: Mirror to Gitee
+    runs-on: ubuntu-latest
+    if: ${{ secrets.GITEE_TOKEN != '' }}
+    steps:
+      - name: Checkout (all history & tags)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Push all branches & tags to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          git remote add gitee "https://mr-awei:${GITEE_TOKEN}@gitee.com/mr-awei/lottery-picker-mobile.git"
+          git push gitee --all
+          git push gitee --tags
