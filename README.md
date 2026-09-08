@@ -1,6 +1,6 @@
 # 彩票选号器 · Lottery Picker Mobile
 
-> **Marvis** · v1.9.10 · MIT License
+> **Marvis** · v1.10.0 · 彩票选号器手机版 双授权协议 v1.0
 
 一款**纯前端、免费无广告、离线可用**的中国数字彩选号与分析工具，运行于 Android（Capacitor 原生壳）与浏览器。
 
@@ -31,6 +31,7 @@
 - **追号计划**：固定号码回测，支持固定 / 线性 / 翻倍 / 阶梯倍投
 - **走势图横屏**：ECharts dataZoom 双指缩放 + 横屏全屏查看
 - **深色 / 浅色主题**、每日理性购彩提醒、临近开奖倒计时自动刷新
+- **开源协议展示**（v1.10.0+）：设置页 → 关于软件 → 开源协议，内置完整中英双语双授权协议全文
 
 ---
 
@@ -53,12 +54,12 @@
 ## 项目结构
 
 ```
-lottery-picker-mobile-v2/
+lottery-picker-mobile/
 ├── src/                     # Vue 源代码
 │   ├── App.vue              # 根组件（彩种切换 / 倒计时 / 每日提醒）
 │   ├── main.js              # 应用入口
 │   ├── assets/              # 全局样式 + 中国地图 GeoJSON
-│   ├── components/          # 17 个功能组件
+│   ├── components/          # 功能组件
 │   │   ├── AiPicker.vue         # AI 选号引擎 UI
 │   │   ├── LotteryBoard.vue     # 彩种主面板（tab 容器）
 │   │   ├── FileCheck.vue        # OCR 拍照查奖
@@ -75,9 +76,9 @@ lottery-picker-mobile-v2/
 │   │   ├── MaxPrizeCard.vue     # 最大奖概览
 │   │   ├── HistoryTable.vue     # 往期开奖表
 │   │   ├── KnowledgeView.vue    # 选号知识库
-│   │   └── SettingsView.vue     # 设置中心
+│   │   └── SettingsView.vue     # 设置中心（含关于软件 + 开源协议入口）
 │   └── utils/               # 工具函数 / 引擎
-│       ├── game-config.js       # 8 彩种玩法参数（红球池 / 蓝球池 / 三区 / 和值）
+│       ├── game-config.js       # 8 彩种玩法参数
 │       ├── picker-engine.js     # 选号评分核心（21 维加权）
 │       ├── picker-worker.js     # Worker 入口（多线程加速）
 │       ├── prize-check.js       # 兑奖规则（各彩种奖级判定）
@@ -91,14 +92,13 @@ lottery-picker-mobile-v2/
 │   ├── tessdata/            # tesseract 英文语言包
 │   └── tesseract/           # tesseract.js wasm + worker
 ├── android/                 # Capacitor Android 原生工程
-│   ├── app/build/outputs/apk/release/app-release.apk  # 已构建的 Release APK
-│   ├── gradle/wrapper/      # Gradle 8.14.3
 │   └── ...
 ├── dist/                    # Vite 构建产物（WebView 加载）
 ├── index.html               # Web 入口（含 CSP meta）
 ├── vite.config.js           # Vite 配置（base: './' 适配 file://）
 ├── capacitor.config.json    # Capacitor 配置（appId / webDir / Android 颜色）
-└── package.json             # 依赖与脚本
+├── package.json             # 依赖与脚本
+└── LICENSE                  # 双授权协议 v1.0（中英双语）
 ```
 
 ---
@@ -133,7 +133,7 @@ npm run cap:apk
 
 # 方式 B：分步
 npm run build                 # 先 web 产物
-npm run cap:sync              # vite build + cap sync android（把 dist 拷到 android/app/src/main/assets/public/）
+npm run cap:sync              # vite build + cap sync android
 cd android
 ./gradlew assembleDebug       # 生成 android/app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -144,9 +144,11 @@ cd android
 > ```
 > 然后在 `android/app/build.gradle` 中配置 `signingConfigs.release.storeFile / storePassword / keyAlias / keyPassword`。
 
-### 多仓库推送与自动构建（GitHub → Gitee）
+---
 
-项目同时托管于 **GitHub**（`origin`）与 **Gitee**（`gitee`），推送一次代码后：
+## 多仓库推送与云端构建（GitHub → Gitee）
+
+项目同时托管于 **GitHub**（`origin`）与 **Gitee**（`gitee`），推送一次代码后 GitHub Actions 自动构建 APK：
 
 ```
 git push                        # ① 只需推到 GitHub
@@ -159,23 +161,23 @@ GitHub Actions（.github/workflows/android.yml）
         └─ ③ 自动镜像：把 main 分支 + 全部标签同步推送到 Gitee（需 GITEE_TOKEN）
 ```
 
-**一次一次性配置（约 5 分钟）**
+**一次性配置（约 5 分钟）**
 
-1. 在 Gitee 创建同名**空仓库** `lottery-picker-mobile`（不要勾选“初始化 README”，否则首推会被拒绝）。
+1. 在 Gitee 创建同名**空仓库** `lottery-picker-mobile`（不要勾选"初始化 README"）。
 2. 生成 Gitee 私人令牌：Gitee → 设置 → 安全设置 → **私人令牌** → 生成新令牌，勾选 `projects` 的**读写**权限并复制。
 3. 在 GitHub 仓库 → Settings → Secrets and variables → Actions 中新增 Secret：
    | Secret 名 | 值 |
    |---|---|
    | `GITEE_TOKEN` | 第 2 步复制的 Gitee 私人令牌（必填，镜像到 Gitee 用） |
-   | `ANDROID_KEYSTORE_BASE64` | （可选）Release 签名 keystore 的 base64，用于构建**正式签名**的 `app-release.apk`，且 keystore 别名/密码须与 `android/gradle.properties` 一致 |
+   | `ANDROID_KEYSTORE_BASE64` | （可选）Release 签名 keystore 的 base64，用于构建正式签名的 `app-release.apk` |
 4. 推送到 GitHub 即可：`git push`，之后 Actions 会自动构建并同步 Gitee。
 
 **日常使用**
 
 ```bash
 git push                 # 推到 GitHub，Actions 自动构建 APK + 镜像 Gitee
-git push origin v1.9.10  # 打标签：构建 + 发布 GitHub Release
-npm run push:all         # 或本机一次性手动推 GitHub + Gitee 两端（首次会提示输入 Gitee 凭据）
+git push origin v1.10.0  # 打标签：构建 + 发布 GitHub Release（附带 APK）
+npm run push:all         # 或本机一次性手动推 GitHub + Gitee 两端
 ```
 
 > 想让本地每次 `git push` 都自动双发（GitHub + Gitee），可执行：
@@ -183,9 +185,11 @@ npm run push:all         # 或本机一次性手动推 GitHub + Gitee 两端（�
 > git remote set-url --add --push origin git@github.com:mr-awei/lottery-picker-mobile.git
 > git remote set-url --add --push origin https://gitee.com/mr-awei/lottery-picker-mobile.git
 > ```
-> ⚠️ 配置后每次 push 都会尝试推送两端，任一端鉴权失败会让命令以非零退出，请确保两端凭据都有效。
+> ⚠️ 配置后每次 push 都会尝试推送两端，任一端鉴权失败会让命令以非零退出。
 
-### 数据来源说明
+---
+
+## 数据来源
 
 | 路径 | 说明 |
 |------|------|
@@ -219,11 +223,11 @@ OCR 原始文本
     ↓
 ocr-meta.js 二次解析 → 彩种 / 销售期 / 开奖日期 / 玩法
     ↓
-picker-engine.extractTickets → 多注号码（letterBlocks / numberedBlocks / perLine 四策略全跑）
+picker-engine.extractTickets → 多注号码（letterBlocks / numberedBlocks / perLine / 启发式兜底 四策略全跑去重）
     ↓
 精确核对 → lotteryApi.lookupByIssue(game, issue) → 历史开奖数据（本地缓存 / 快照 / 官方接口）
     ↓
-中奖结果 + 兑奖流程弹窗
+中奖结果 + 兑奖流程弹窗（非当期明确告知）
 ```
 
 ---
@@ -232,12 +236,20 @@ picker-engine.extractTickets → 多注号码（letterBlocks / numberedBlocks / 
 
 1. **CSP 限制**：`index.html` 内的 `Content-Security-Policy` meta 严格限制资源来源，修改依赖时需同步更新
 2. **Capacitor file:// 路径**：Vite `base: './'` 配置确保 APK 内 WebView 能正确加载相对路径资源
-3. **Android 签名**：`lottery-release-key-v2.jks` 包含在仓库中，用于 Release APK 自签名；迁移到其他机器构建 Release 时请使用自己的 keystore
-4. **原生相册兜底**：部分国产 ROM（华为/小米/OPPO/三星）相册取消时不回调 Capacitor，已用 `<input type=file>` + 12s 超时兜底
+3. **Android 签名**：Release APK 需自签 keystore；迁移到其他机器构建时请使用自己的 keystore
+4. **原生相册兜底**：部分国产 ROM（华为/小米/OPPO/三星）相册取消时不回调 Capacitor，已用 `<input type=file>` + 超时兜底
 5. **浏览器 CORS**：cwl.gov.cn / sporttery.cn 不返回 `Access-Control-Allow-Origin`，浏览器 fetch 会被拦截；已自动回退本地快照，APK 走 CapacitorHttp 无此问题
+6. **理性购彩**：本软件所有统计、评分、推荐均不提高中奖概率，仅供娱乐参考。未成年人禁止购彩，请量力而行
 
 ---
 
-## License
+## 开源协议
 
-MIT — 本软件完全免费，不含内购、广告或任何付费功能。严禁倒卖、转售、付费安装或其他形式的商业化分发。
+本项目采用「彩票选号器手机版 双授权协议 v1.0」（Lottery Picker Mobile Dual License v1.0）
+
+- ✅ **非商业使用免费**（个人、非盈利组织、教育机构）
+- 💰 **商业使用需授权**（联系 new_mr_awei@163.com）
+- 🚫 **严禁用于恶意程序**（三层保护：防篡改注入、防植入恶意程序、防用于恶意程序）
+- ⚖️ **违反者保留起诉权利**
+
+详见 [LICENSE](./LICENSE)
