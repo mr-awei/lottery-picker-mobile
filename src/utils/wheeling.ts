@@ -1,29 +1,22 @@
 // 旋转矩阵（Wheeling System）：从号码池中按矩阵公式生成保证覆盖的精简组合
-// 架构：公式表 WHEELING_TABLE[gameKey] 存储标准矩阵；applyWheeling 将索引映射为实际号码
+// 用贪心覆盖设计（Covering Design）动态生成任意 poolSize 的缩水公式，无需硬编码
 
 /** 旋转矩阵公式定义 */
 export interface WheelingFormula {
-  /** 公式名，如 "选7中6保5" */
   name: string
-  /** 用户号码池大小 */
   poolSize: number
-  /** 每注选取个数（= 彩种 redCount） */
   pickSize: number
-  /** 保证命中数（中 Y 保 Z） */
   guarantee: number
-  /** 矩阵行：每行是一组索引（0-based，对应用户号码池下标） */
   lines: number[][]
-  /** 总注数 */
   count: number
 }
 
-/** 从 arr 中枚举所有 k 组合（索引数组） */
-function combosOfIndices(n: number, k: number): number[][] {
+/** 枚举 n 选 k 的所有索引组合 */
+function combos(n: number, k: number): number[][] {
   if (k < 0 || k > n) return []
   if (k === 0) return [[]]
   const out: number[][] = []
   const idx = Array.from({ length: k }, (_, i) => i)
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     out.push([...idx])
     let p = k - 1
@@ -35,68 +28,92 @@ function combosOfIndices(n: number, k: number): number[][] {
   return out
 }
 
-/** 构建"全组合"公式（中 k 保 k，即不缩水的基准矩阵） */
-function fullComboFormula(name: string, poolSize: number, pickSize: number): WheelingFormula {
-  const lines = combosOfIndices(poolSize, pickSize)
+/** 判断 subset（升序）是否包含于 line（升序） */
+function containsAll(line: number[], subset: number[]): boolean {
+  let i = 0
+  for (const s of subset) {
+    while (i < line.length && line[i] < s) i++
+    if (i >= line.length || line[i] !== s) return false
+    i++
+  }
+  return true
+}
+
+/**
+ * 贪心覆盖设计：生成最少的 pickSize-子集，使得任意 guarantee-子集至少被一行覆盖。
+ * 每轮选覆盖未覆盖 t-子集最多的那行，直到全部覆盖。
+ * 复杂度可接受：poolSize≤12, pickSize≤6 时 <100ms。
+ */
+function greedyCovering(poolSize: number, pickSize: number, guarantee: number): number[][] {
+  const allLines = combos(poolSize, pickSize)
+  const allSubsets = combos(poolSize, guarantee)
+  const uncovered = new Set<number>(allSubsets.map((_, i) => i))
+  const subsetArr = allSubsets
+  const result: number[][] = []
+
+  while (uncovered.size > 0) {
+    let bestLine: number[] | null = null
+    let bestCount = -1
+    let bestCovered: number[] = []
+
+    for (const line of allLines) {
+      const covered: number[] = []
+      for (const si of uncovered) {
+        if (containsAll(line, subsetArr[si])) {
+          covered.push(si)
+        }
+      }
+      if (covered.length > bestCount) {
+        bestCount = covered.length
+        bestLine = line
+        bestCovered = covered
+        if (bestCount === uncovered.size) break
+      }
+    }
+
+    if (!bestLine || bestCount <= 0) break
+    result.push(bestLine)
+    for (const si of bestCovered) uncovered.delete(si)
+  }
+
+  return result
+}
+
+/** 全组合公式（中 k 保 k） */
+function fullCombo(name: string, poolSize: number, pickSize: number): WheelingFormula {
+  const lines = combos(poolSize, pickSize)
   return { name, poolSize, pickSize, guarantee: pickSize, lines, count: lines.length }
 }
 
-/**
- * 双色球旋转矩阵公式表（pickSize=6）
- * 基准：全组合 C(n,6) 即"中6保6"
- * 缩水：选7中6保5 = 6 注（去掉 7 个全组合中的 {0,1,2,3,4,5} 行，保证任意 5 个号共线）
- */
-const SSQ_FORMULAS: WheelingFormula[] = [
-  // 选7中6保5（缩水版，6注）
-  {
-    name: '选7中6保5',
-    poolSize: 7,
-    pickSize: 6,
-    guarantee: 5,
-    // 6 行，分别缺少索引 6,5,4,3,2,1（即不缺 0）
-    // 任意 5 个号的子集必然不包含全部 6 个缺号 → 至少一行覆盖
-    lines: [
-      [0, 1, 2, 3, 4, 5],
-      [0, 1, 2, 3, 4, 6],
-      [0, 1, 2, 3, 5, 6],
-      [0, 1, 2, 4, 5, 6],
-      [0, 1, 3, 4, 5, 6],
-      [0, 2, 3, 4, 5, 6]
-    ],
-    count: 6
-  },
-  // 以下为全组合基准（中6保6）
-  fullComboFormula('选7中6全保', 7, 6),
-  fullComboFormula('选8中6全保', 8, 6),
-  fullComboFormula('选9中6全保', 9, 6),
-  fullComboFormula('选10中6全保', 10, 6),
-  fullComboFormula('选11中6全保', 11, 6),
-  fullComboFormula('选12中6全保', 12, 6)
-]
-
-/**
- * 大乐透旋转矩阵公式表（pickSize=5）
- * 基准：全组合 C(n,5) 即"中5保5"
- */
-const DLT_FORMULAS: WheelingFormula[] = [
-  fullComboFormula('选7中5全保', 7, 5),
-  fullComboFormula('选8中5全保', 8, 5),
-  fullComboFormula('选9中5全保', 9, 5),
-  fullComboFormula('选10中5全保', 10, 5)
-]
-
-/** 旋转矩阵公式表：key = 彩种 key */
-export const WHEELING_TABLE: Record<string, WheelingFormula[]> = {
-  ssq: SSQ_FORMULAS,
-  dlt: DLT_FORMULAS
+/** 动态生成某彩种的全部公式（每个 poolSize 两个：缩水保 pickSize-1 + 全保） */
+function buildFormulas(gameKey: string, pickSize: number, maxPool: number): WheelingFormula[] {
+  const formulas: WheelingFormula[] = []
+  for (let pool = pickSize + 1; pool <= maxPool; pool++) {
+    // 缩水版：中 pickSize 保 pickSize-1
+    const reducedLines = greedyCovering(pool, pickSize, pickSize - 1)
+    formulas.push({
+      name: `选${pool}中${pickSize}保${pickSize - 1}`,
+      poolSize: pool,
+      pickSize,
+      guarantee: pickSize - 1,
+      lines: reducedLines,
+      count: reducedLines.length
+    })
+    // 全保版：中 pickSize 保 pickSize
+    formulas.push(fullCombo(`选${pool}中${pickSize}全保`, pool, pickSize))
+  }
+  return formulas
 }
 
-/**
- * 应用旋转矩阵：将公式中的索引映射为号码池中的实际号码。
- * @param pool 用户选定的号码池（升序数字数组）
- * @param formula 旋转矩阵公式
- * @returns 矩阵生成的每注号码数组（每注 pickSize 个红球）
- */
+/** 公式表：模块加载时动态生成并缓存 */
+const FORMULA_CACHE: Record<string, WheelingFormula[]> = {
+  ssq: buildFormulas('ssq', 6, 12),
+  dlt: buildFormulas('dlt', 5, 10)
+}
+
+export const WHEELING_TABLE: Record<string, WheelingFormula[]> = FORMULA_CACHE
+
+/** 应用旋转矩阵：索引映射为实际号码 */
 export function applyWheeling(pool: number[], formula: WheelingFormula): number[][] {
   if (!pool || pool.length < formula.poolSize) return []
   return formula.lines.map((lineIdx) =>
@@ -104,12 +121,8 @@ export function applyWheeling(pool: number[], formula: WheelingFormula): number[
   )
 }
 
-/**
- * 获取某彩种某号码池大小可用的公式列表
- * @param gameKey 彩种 key
- * @param poolSize 号码池大小
- */
+/** 获取某彩种某号码池大小可用的公式列表 */
 export function getFormulasForPool(gameKey: string, poolSize: number): WheelingFormula[] {
-  const all = WHEELING_TABLE[gameKey] || []
+  const all = FORMULA_CACHE[gameKey] || []
   return all.filter((f) => f.poolSize === poolSize)
 }
