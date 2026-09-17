@@ -5,10 +5,32 @@
         <span class="spl-title-text">我的自选票</span>
         <span class="spl-count">{{ picks.length }} 张<span v-if="picks.length" class="spl-hits"> · 历史 {{ totalHits }} 期中奖</span></span>
       </div>
-      <div v-if="picks.length" class="spl-tools">
-        <el-button size="small" text @click="recheckAll">重新核对</el-button>
-        <el-button size="small" text type="danger" @click="clearAll">清空全部</el-button>
-      </div>
+    <div v-if="picks.length" class="spl-tools">
+      <el-input v-model="kw" size="small" placeholder="搜索号码 / 标签 / 期号" clearable style="width: 170px" />
+      <el-select v-model="filterGroup" size="small" style="width: 110px">
+        <el-option label="全部分组" value="all" />
+        <el-option label="未分组" value="none" />
+        <el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />
+      </el-select>
+      <el-select v-model="filterStatus" size="small" style="width: 100px">
+        <el-option label="全部" value="all" />
+        <el-option label="已投注" value="purchased" />
+        <el-option label="未投注" value="unpurchased" />
+      </el-select>
+      <el-select v-model="filterWin" size="small" style="width: 100px">
+        <el-option label="全部" value="all" />
+        <el-option label="已中奖" value="win" />
+        <el-option label="未中奖" value="nowin" />
+      </el-select>
+      <el-select v-model="sortBy" size="small" style="width: 110px">
+        <el-option label="按保存时间" value="date" />
+        <el-option label="按中奖金额" value="prize" />
+        <el-option label="按注数" value="count" />
+      </el-select>
+      <el-button size="small" text @click="groupDialog = true">分组管理</el-button>
+      <el-button size="small" text @click="recheckAll">重新核对</el-button>
+      <el-button size="small" text type="danger" @click="clearAll">清空全部</el-button>
+    </div>
     </div>
 
     <div v-if="!picks.length" class="spl-empty">
@@ -21,7 +43,7 @@
     </div>
 
     <div v-else class="spl-list">
-      <div v-for="p in picks" :key="p.id" class="spl-row" :class="{ won: p.prize && p.prize.level > 0, pending: p.status === 'pending' }">
+      <div v-for="p in filteredPicks" :key="p.id" class="spl-row" :class="{ won: p.prize && p.prize.level > 0, pending: p.status === 'pending', bought: p.purchased }">
         <div class="spl-main">
           <div v-if="p.ticket.type === 'single'" class="spl-balls">
             <template v-if="p.ticket.digits">
@@ -110,11 +132,52 @@
               <span class="spl-hit-bonus">¥{{ fmtBonus(h.bonus) }}</span>
             </div>
           </div>
+          <div class="spl-ops">
+            <el-button size="small" text :type="p.purchased ? 'success' : 'primary'" @click="togglePurchased(p)">
+              {{ p.purchased ? '已投注 ✓' : '标记投注' }}
+            </el-button>
+            <el-select :model-value="p.groupId || ''" size="small" placeholder="未分组" style="width: 96px" @change="(v) => setGroup(p, v)">
+              <el-option label="未分组" value="" />
+              <el-option v-for="g in groups" :key="g.id" :label="g.name" :value="g.id" />
+            </el-select>
+            <el-popover v-model:visible="p._tagsOpen" placement="bottom" :width="220" trigger="click">
+              <template #reference>
+                <el-button size="small" text>{{ (p.tags && p.tags.length) ? '🏷 ' + p.tags.join(' / ') : '加标签' }}</el-button>
+              </template>
+              <el-input
+                :model-value="tagsDraftFor(p)"
+                size="small"
+                placeholder="逗号分隔，如：守号, 热号"
+                @input="tagsInput = $event"
+                @keyup.enter="saveTags(p)"
+              />
+              <div style="margin-top: 8px; text-align: right">
+                <el-button size="small" text @click="p._tagsOpen = false">取消</el-button>
+                <el-button size="small" type="primary" @click="saveTags(p)">保存</el-button>
+              </div>
+            </el-popover>
+            <span v-if="p.purchased" class="spl-sub">投入 ¥{{ p.cost || 0 }}<template v-if="p.prizeAmount"> · 中奖 ¥{{ fmtBonus(p.prizeAmount) }}</template></span>
+          </div>
         </div>
 
         <el-button size="small" text type="danger" class="spl-del" @click="removePick(p.id)">删除</el-button>
       </div>
     </div>
+
+    <el-dialog v-model="groupDialog" title="分组管理" width="420px" append-to-body>
+      <div class="gm-list">
+        <div v-for="g in groups" :key="g.id" class="gm-row">
+          <span class="gm-name">{{ g.name }}</span>
+          <el-button size="small" text @click="renameGroup(g)">重命名</el-button>
+          <el-button size="small" text type="danger" @click="deleteGroup(g)">删除</el-button>
+        </div>
+        <div v-if="!groups.length" class="gm-empty">还没有分组，点击下方按钮创建。</div>
+      </div>
+      <div style="margin-top: 10px">
+        <el-button size="small" type="primary" plain @click="addGroup">+ 新建分组</el-button>
+        <span class="spl-sub">删除分组不会删除号码，号码自动归入"未分组"。</span>
+      </div>
+    </el-dialog>
 
     <el-dialog v-model="flowVisible" width="600px" align-center class="prize-flow-dialog" :show-close="true" append-to-body>
       <div v-if="flowData" class="prize-flow">
@@ -167,12 +230,22 @@ const props = defineProps({
 })
 
 const STORE_KEY = () => 'lottery-picker-mypicks-' + props.cfg.key
+const GROUPS_KEY = () => 'lp-pick-groups-' + props.cfg.key
 const FLOW_SHOWN_KEY = () => 'lottery-picker-flow-shown-' + props.cfg.key
 
 const picks = ref([])
 const flowVisible = ref(false)
 const flowData = ref(null)
 const shownFlowIds = ref(new Set())
+// 分组 / 标签 / 搜索筛选（Feature 7）
+const groups = ref([])
+const groupDialog = ref(false)
+const kw = ref('')
+const filterGroup = ref('all')
+const filterStatus = ref('all')
+const filterWin = ref('all')
+const sortBy = ref('date')
+const tagsInput = ref('')
 
 const latest = computed(() => (props.draws && props.draws.length ? props.draws[0] : null))
 const totalHits = computed(() => picks.value.reduce((a, p) => a + (p.hitCount || 0), 0))
@@ -183,18 +256,31 @@ function zxLabel(zx) {
   return '直选'
 }
 
+/** 数据迁移：旧自选号记录读取时回填新字段默认值；prizeAmount 从 totalBonus 回填 */
+function normPick(p) {
+  return {
+    ...p,
+    purchased: !!p.purchased,
+    purchaseDate: p.purchaseDate || '',
+    cost: typeof p.cost === 'number' ? p.cost : 0,
+    prizeAmount: typeof p.prizeAmount === 'number' ? p.prizeAmount : (p.totalBonus || 0),
+    groupId: p.groupId ?? null,
+    tags: Array.isArray(p.tags) ? p.tags : []
+  }
+}
+
 async function load() {
   try {
     const raw = await get(STORE_PICKS, STORE_KEY())
     const arr = Array.isArray(raw) ? raw : []
     picks.value = arr.map((p) => {
       if (!p.ticket) {
-        return {
+        return normPick({
           ...p,
           ticket: { type: 'single', red: p.red || [], blue: p.blue || [] },
           combos: 1,
           amount: 2
-        }
+        })
       }
       // 修复（1.8.5）：旧版本 multi 票存了错误的 combos/amount（calcPlay bug 导致 5 注存为 1/¥2），
       // 加载时按 ticket.tickets.length 重算（默认 ¥2/注，不含追加/倍数——用户已加的不动）
@@ -202,15 +288,140 @@ async function load() {
         const realCombos = p.ticket.tickets.length
         if (p.combos !== realCombos) {
           // 用真实注数 + 重新按基础价（¥2/注）算金额（追加/倍数场景用户应手动重选）
-          return { ...p, combos: realCombos, amount: realCombos * 2 }
+          return normPick({ ...p, combos: realCombos, amount: realCombos * 2 })
         }
       }
-      return p
+      return normPick(p)
     })
   } catch (e) {
     picks.value = []
   }
 }
+
+// ---------- 分组管理（localStorage: lp-pick-groups-{game}） ----------
+function loadGroups() {
+  try {
+    groups.value = JSON.parse(localStorage.getItem(GROUPS_KEY()) || '[]')
+    if (!Array.isArray(groups.value)) groups.value = []
+  } catch (e) {
+    groups.value = []
+  }
+}
+
+function persistGroups() {
+  try {
+    localStorage.setItem(GROUPS_KEY(), JSON.stringify(groups.value))
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function addGroup() {
+  ElMessageBox.prompt('分组名称', '新建分组', {
+    confirmButtonText: '创建',
+    cancelButtonText: '取消',
+    inputPlaceholder: '如：守号 / 随机 / 已中奖'
+  })
+    .then(({ value }) => {
+      const name = (value || '').trim()
+      if (!name) return
+      groups.value = [...groups.value, { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name }]
+      persistGroups()
+    })
+    .catch(() => {})
+}
+
+function renameGroup(g) {
+  ElMessageBox.prompt('新名称', '重命名分组', {
+    confirmButtonText: '保存',
+    cancelButtonText: '取消',
+    inputValue: g.name
+  })
+    .then(({ value }) => {
+      const name = (value || '').trim()
+      if (!name) return
+      groups.value = groups.value.map((x) => (x.id === g.id ? { ...x, name } : x))
+      persistGroups()
+    })
+    .catch(() => {})
+}
+
+function deleteGroup(g) {
+  ElMessageBox.confirm(`删除分组"${g.name}"？号码不会被删除，将移到"未分组"。`, '删除分组', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => {
+      groups.value = groups.value.filter((x) => x.id !== g.id)
+      picks.value = picks.value.map((p) => (p.groupId === g.id ? { ...p, groupId: null } : p))
+      persistGroups()
+      persist()
+      ElMessage.success('已删除分组')
+    })
+    .catch(() => {})
+}
+
+// ---------- 投注标记 / 标签 / 筛选 ----------
+function togglePurchased(p) {
+  if (p.purchased) {
+    p.purchased = false
+    p.purchaseDate = ''
+  } else {
+    p.purchased = true
+    p.purchaseDate = new Date().toISOString()
+    p.cost = typeof p.cost === 'number' ? p.cost : (p.amount || 0)
+    if (typeof p.prizeAmount !== 'number') p.prizeAmount = p.totalBonus || 0
+  }
+  persist()
+  ElMessage.success(p.purchased ? '已标记为投注' : '已取消投注标记')
+}
+
+function setGroup(p, id) {
+  p.groupId = id || null
+  persist()
+}
+
+function tagsDraftFor(p) {
+  tagsInput.value = (p.tags || []).join(',')
+  return tagsInput.value
+}
+
+function saveTags(p) {
+  p.tags = String(tagsInput.value || '')
+    .split(/[,，]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  p._tagsOpen = false
+  persist()
+}
+
+/** 该票是否中奖（用于筛选与高亮） */
+function pickWon(p) {
+  return (p.prizeAmount || p.totalBonus || 0) > 0 || (p.prize && p.prize.level > 0)
+}
+
+const filteredPicks = computed(() => {
+  let arr = picks.value
+  if (filterGroup.value === 'none') arr = arr.filter((p) => !p.groupId)
+  else if (filterGroup.value !== 'all') arr = arr.filter((p) => p.groupId === filterGroup.value)
+  if (filterStatus.value === 'purchased') arr = arr.filter((p) => p.purchased)
+  else if (filterStatus.value === 'unpurchased') arr = arr.filter((p) => !p.purchased)
+  if (filterWin.value === 'win') arr = arr.filter((p) => pickWon(p))
+  else if (filterWin.value === 'nowin') arr = arr.filter((p) => !pickWon(p))
+  const q = kw.value.trim().toLowerCase()
+  if (q) {
+    arr = arr.filter((p) => {
+      const hay = [p.checkedIssue, (p.tags || []).join(' '), JSON.stringify(p.ticket)].join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  }
+  const out = [...arr]
+  if (sortBy.value === 'prize') out.sort((a, b) => (b.prizeAmount || b.totalBonus || 0) - (a.prizeAmount || a.totalBonus || 0))
+  else if (sortBy.value === 'count') out.sort((a, b) => (b.combos || 0) - (a.combos || 0))
+  else out.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))
+  return out
+})
 
 async function persist() {
   try {
@@ -351,6 +562,7 @@ async function onPicksUpdated(e) {
 onMounted(async () => {
   await load()
   loadShown()
+  loadGroups()
   if (props.draws && props.draws.length) recheckAll()
   window.addEventListener('lp-picks-updated', onPicksUpdated)
 })
@@ -362,6 +574,7 @@ onMounted(async () => {
 onActivated(async () => {
   await load()
   loadShown()
+  loadGroups()
   if (props.draws && props.draws.length) recheckAll()
 })
 
@@ -442,6 +655,9 @@ watch(() => props.draws, () => {
 .spl-tools {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
 }
 
 /* ---------- 空状态（精简：无虚线方框，纯文字+icon） ---------- */
@@ -498,6 +714,45 @@ watch(() => props.draws, () => {
 }
 .spl-row.pending {
   border-color: rgba(100, 181, 246, 0.4);
+}
+.spl-row.bought {
+  border-color: rgba(103, 194, 58, 0.45);
+}
+
+.spl-ops {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border, rgba(255, 255, 255, 0.15));
+}
+
+.gm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gm-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--card-bg, rgba(255, 255, 255, 0.04));
+}
+.gm-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.gm-empty {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 12px 0;
 }
 
 .spl-main {

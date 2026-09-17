@@ -71,6 +71,9 @@ export function usePicker(props) {
   // 自定义号码：用户锁定必选号，剩余由 AI 补齐
   const lockedRed = ref([])
   const lockedBlue = ref([])
+  // 杀号排除：用户标记不再出现的号码（生成时从采样池剔除）
+  const excludedRed = ref([])
+  const excludedBlue = ref([])
 
   // 直位玩法（3D/排列3/排列5/7星彩）：定位选号 + 组选方式
   const zxType = ref('direct')
@@ -178,6 +181,54 @@ export function usePicker(props) {
     return lockedBlue.value.includes(n)
   }
 
+  // 杀号排除：点击在"杀号"与"不杀"之间切换
+  function toggleExcludeRed(n) {
+    const i = excludedRed.value.indexOf(n)
+    if (i >= 0) excludedRed.value.splice(i, 1)
+    else excludedRed.value.push(n)
+  }
+
+  function toggleExcludeBlue(n) {
+    const i = excludedBlue.value.indexOf(n)
+    if (i >= 0) excludedBlue.value.splice(i, 1)
+    else excludedBlue.value.push(n)
+  }
+
+  function isExcludedRed(n) {
+    return excludedRed.value.includes(n)
+  }
+
+  function isExcludedBlue(n) {
+    return excludedBlue.value.includes(n)
+  }
+
+  function clearExcluded() {
+    excludedRed.value = []
+    excludedBlue.value = []
+  }
+
+  /** 定胆：把推荐号码加入锁定（满员时提示） */
+  function applyDanRed(n) {
+    if (lockedRed.value.includes(n)) return
+    if (excludedRed.value.includes(n)) toggleExcludeRed(n)
+    if (lockedRed.value.length >= lockLimit.value.red) {
+      ElMessage.warning(`当前玩法最多锁定 ${lockLimit.value.red} 个${props.cfg.redLabel}，请先解锁一个`)
+      return
+    }
+    lockedRed.value.push(n)
+  }
+
+  /** 定胆：把推荐蓝球加入锁定 */
+  function applyDanBlue(n) {
+    if (lockedBlue.value.includes(n)) return
+    if (excludedBlue.value.includes(n)) toggleExcludeBlue(n)
+    if (lockedBlue.value.length >= lockLimit.value.blue) {
+      ElMessage.warning(`当前玩法最多锁定 ${lockLimit.value.blue} 个${props.cfg.blueLabel}，请先解锁一个`)
+      return
+    }
+    lockedBlue.value.push(n)
+  }
+
   const currentPlay = computed(() => {
     const base = { append: append.value && props.cfg.zhuijia, multiple: multiple.value }
     // 直位玩法：3D/排列3/排列5/7星彩
@@ -200,10 +251,16 @@ export function usePicker(props) {
       blue: lockedBlue.value.slice().sort((a, b) => a - b)
     }
     const hasLock = locked.red.length > 0 || locked.blue.length > 0
-    if (playType.value === 'single') return { type: 'single', ...base, ...(hasLock ? { locked } : {}) }
-    if (playType.value === 'multi') return { type: 'multi', n: multiN.value, ...base, ...(hasLock ? { locked } : {}) }
-    if (playType.value === 'duplex') return { type: 'duplex', redCount: duplexRed.value, blueCount: duplexBlue.value, ...base, ...(hasLock ? { locked } : {}) }
-    const danTuoBase = { type: 'danTuo', danN: danN.value, tuoN: tuoN.value, ...base, ...(hasLock ? { locked } : {}) }
+    const excluded = {
+      red: excludedRed.value.slice().sort((a, b) => a - b),
+      blue: excludedBlue.value.slice().sort((a, b) => a - b)
+    }
+    const hasExclude = excluded.red.length > 0 || excluded.blue.length > 0
+    const excl = hasExclude ? { excluded } : {}
+    if (playType.value === 'single') return { type: 'single', ...base, ...(hasLock ? { locked } : {}), ...excl }
+    if (playType.value === 'multi') return { type: 'multi', n: multiN.value, ...base, ...(hasLock ? { locked } : {}), ...excl }
+    if (playType.value === 'duplex') return { type: 'duplex', redCount: duplexRed.value, blueCount: duplexBlue.value, ...base, ...(hasLock ? { locked } : {}), ...excl }
+    const danTuoBase = { type: 'danTuo', danN: danN.value, tuoN: tuoN.value, ...base, ...(hasLock ? { locked } : {}), ...excl }
     // 复式胆拖：双色球胆拖蓝球多选（官方玩法）
     if (props.cfg.blueCount === 1 && blueN.value > 1) danTuoBase.blueCount = blueN.value
     // 大乐透后区胆拖：blueDanN>0 时启用后区胆码+拖码
@@ -502,12 +559,15 @@ export function usePicker(props) {
     result, generatedAt, playType, multiN, duplexRed, duplexBlue, danN, tuoN, blueN,
     blueDanN, blueTuoN, multiple, targetScore, searching, searchingCount, maxAttempts,
     violentAttempts, isViolent, freq, stopping, rolling, rollBalls, methods, methodsCollapsed,
-    append, lockedRed, lockedBlue, zxType, posSel, tailSel, savedTip, saving, accelBackend,
+    append, lockedRed, lockedBlue, excludedRed, excludedBlue, zxType, posSel, tailSel, savedTip, saving, accelBackend,
     methodList, recommendedMethodList, advancedMethodList, zxLabel, hasPosSel, lockLimit,
     lockHint, currentPlay, liveCalc, liveCombos, liveAmount, searchProgress, hasDraws,
     accelClass, accelHint,
     recommendedMethods, toggleMethodsCollapse, togglePos, toggleTail, clearPos, isPosSel,
-    toggleLockRed, toggleLockBlue, clearLocked, isLockedRed, isLockedBlue, stopRoll, playRoll,
+    toggleLockRed, toggleLockBlue, clearLocked, isLockedRed, isLockedBlue,
+    toggleExcludeRed, toggleExcludeBlue, isExcludedRed, isExcludedBlue, clearExcluded,
+    applyDanRed, applyDanBlue,
+    stopRoll, playRoll,
     generate, resetFreq, collectTicketFreq, stopSearching, renderResult, pickUntilTarget,
     nowTime
   }

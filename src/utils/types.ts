@@ -235,6 +235,8 @@ export interface Ticket {
   multiple?: number
   /** 用户锁定号码 */
   locked?: { red?: number[]; blue?: number[] }
+  /** 用户杀号排除（生成时不再从池中采样） */
+  excluded?: { red?: number[]; blue?: number[] }
 }
 
 /** 中奖判定结果（checkPrize / checkPrizeDirect / kl8Prize 返回） */
@@ -297,4 +299,43 @@ export interface ApiDataResult {
   draws?: Draw[]
   count?: number
   missingWinners?: number
+}
+
+/** 自选号分组（localStorage 存：lp-pick-groups-{game}） */
+export interface PickGroup {
+  id: string
+  name: string
+}
+
+/**
+ * 一张已保存的自选号（IndexedDB picks store，key = lottery-picker-mypicks-{game}）。
+ * 旧记录可能缺 purchased/cost/prizeAmount/groupId/tags 等字段，读取时按需回填默认值。
+ */
+export interface SavedPick {
+  id: string
+  createStamp: number
+  ticket: Ticket
+  savedAt: number
+  combos: number
+  amount: number
+  score?: { total: number; max: number; min: number; count: number; lines?: unknown[] }
+  checkedIssue?: string | null
+  status?: string
+  prize?: TicketCheckResult | null
+  hits?: HistoryHit[]
+  hitCount?: number
+  /** 历史累计中奖总额（旧字段；prizeAmount 由其回填） */
+  totalBonus?: number
+  /** 是否已实际投注（默认 false） */
+  purchased?: boolean
+  /** 投注日期（ISO 字符串） */
+  purchaseDate?: string
+  /** 投注成本（按 calcPlay 的 amount） */
+  cost?: number
+  /** 中奖金额（兑奖时填入，默认 0；旧记录从 totalBonus 回填） */
+  prizeAmount?: number
+  /** 分组 id（null = 未分组） */
+  groupId?: string | null
+  /** 自由标签 */
+  tags?: string[]
 }

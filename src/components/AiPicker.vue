@@ -19,6 +19,7 @@
 
     <AiPickerSettings :picker="picker" :cfg="cfg" />
     <AiPickerPanel :picker="picker" :cfg="cfg" />
+    <NumberAdvisor :picker="picker" :cfg="cfg" :draws="draws" />
     <AiPickerResults :picker="picker" :cfg="cfg" :draws="draws" />
   </div>
 </template>
@@ -28,6 +29,7 @@ import { usePicker } from '../composables/usePicker'
 import AiPickerSettings from './AiPickerSettings.vue'
 import AiPickerPanel from './AiPickerPanel.vue'
 import AiPickerResults from './AiPickerResults.vue'
+import NumberAdvisor from './NumberAdvisor.vue'
 
 const props = defineProps({
   draws: { type: Array, required: true },

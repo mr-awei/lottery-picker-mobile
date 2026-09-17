@@ -2,6 +2,14 @@
   <div class="mypicks">
     <div class="card-title">自选号 · 本地保存</div>
 
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      title="理性购彩提示：彩票为独立随机事件，本工具仅供参考，不构成投注建议，请量力而行。"
+      style="margin-bottom: 12px"
+    />
+
     <div class="play-bar">
       <el-radio-group v-if="!isDirect" v-model="playType" size="small">
         <el-radio-button value="single">单注</el-radio-button>
@@ -107,6 +115,8 @@
       <div v-if="playType === 'multi'" class="multi-draft">
         <div class="multi-tools">
           <el-button size="small" @click="randomPick">随机选号</el-button>
+          <el-button size="small" type="warning" plain @click="quickRandom(1)">机选 1 注</el-button>
+          <el-button size="small" type="warning" plain @click="quickRandom(5)">机选 5 注</el-button>
           <el-button size="small" type="primary" plain @click="aiFill">AI 补齐入票</el-button>
           <el-button size="small" @click="clearSel">清空选区</el-button>
           <el-button size="small" type="primary" :disabled="!singleComplete" @click="addToDraft">加入票中（已 {{ draft.length }} 注）</el-button>
@@ -134,6 +144,8 @@
       <div class="pick-actions">
         <template v-if="playType !== 'multi'">
           <el-button size="small" @click="randomPick">随机选号</el-button>
+          <el-button size="small" type="warning" plain @click="quickRandom(1)">机选 1 注</el-button>
+          <el-button size="small" type="warning" plain @click="quickRandom(5)">机选 5 注</el-button>
           <el-button size="small" type="primary" plain @click="aiFill">AI 补齐剩余</el-button>
           <el-button size="small" type="danger" plain @click="clearSel">清空</el-button>
           <el-button size="small" type="primary" :disabled="!canSave || saving" @click="savePick">保存本票</el-button>
@@ -183,11 +195,38 @@
       </div>
       <el-button class="mp-summary-cta" type="primary" plain @click="jumpToCheck">去查中奖核对</el-button>
     </div>
+
+    <!-- 盈亏统计卡片：仅统计已标记投注的自选号 -->
+    <div v-if="picksCount" class="pl-card">
+      <div class="pl-head">
+        <span class="pl-title">盈亏统计</span>
+        <span class="pl-sub">已投注 {{ purchasedPicks.length }} 张</span>
+      </div>
+      <div class="pl-grid">
+        <div class="pl-cell">
+          <div class="pl-num cost">¥{{ totalCost }}</div>
+          <div class="pl-label">总投入</div>
+        </div>
+        <div class="pl-cell">
+          <div class="pl-num win">¥{{ totalPrize }}</div>
+          <div class="pl-label">总中奖</div>
+        </div>
+        <div class="pl-cell">
+          <div class="pl-num" :class="netProfit >= 0 ? 'pos' : 'neg'">{{ netProfit >= 0 ? '+' : '-' }}¥{{ Math.abs(netProfit) }}</div>
+          <div class="pl-label">净盈亏</div>
+        </div>
+        <div class="pl-cell">
+          <div class="pl-num">{{ winRate }}%</div>
+          <div class="pl-label">中奖率</div>
+        </div>
+      </div>
+      <div class="pl-hint">在「查中奖」列表每张票上可标记投注、录入奖金。彩票为独立随机事件，盈亏仅为个人记录。</div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
 import { scoreTicketPlay, calcPlay, createPickerEngine, calcDirectPlay, computeDirectStats, expandDirectTicket, scoreDigits, scoreItemsFor } from '../utils/picker-engine'
@@ -512,14 +551,7 @@ function randomPick() {
   userDan.value = []
   userTuo.value = []
   // 修复（1.8.3）：sort(() => Math.random()-0.5) 是有偏洗牌，改 Fisher-Yates
-  const shuffle = (arr) => {
-    const a = [...arr]
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[a[i], a[j]] = [a[j], a[i]]
-    }
-    return a
-  }
+  const shuffle = shuffleArr
   const pool = Array.from({ length: props.cfg.redMax }, (_, i) => i + 1)
   const bpool = Array.from({ length: props.cfg.blueMax }, (_, i) => i + 1)
   if (playType.value === 'duplex') {
@@ -542,6 +574,54 @@ function randomPick() {
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+/** Fisher-Yates 无偏洗牌（返回新数组，不改原数组） */
+function shuffleArr(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const t = a[i]
+    a[i] = a[j]
+    a[j] = t
+  }
+  return a
+}
+
+/** 生成一注真随机单式票（不经过 AI 评分引擎）：乐透型 red/blue，直位型 digits/tail */
+function randomSingleTicket() {
+  if (isDirect.value) {
+    const digits = props.cfg.digits.map(() => randInt(0, 9))
+    const tail = props.cfg.tail != null ? randInt(0, props.cfg.tailMax) : undefined
+    return { digits, tail }
+  }
+  const pool = Array.from({ length: props.cfg.redMax }, (_, i) => i + 1)
+  const bpool = Array.from({ length: props.cfg.blueMax }, (_, i) => i + 1)
+  return {
+    red: shuffleArr(pool).slice(0, props.cfg.redCount).sort((a, b) => a - b),
+    blue: shuffleArr(bpool).slice(0, props.cfg.blueCount).sort((a, b) => a - b)
+  }
+}
+
+/**
+ * 机选快捷按钮：真随机（Fisher-Yates），不走 AI engine。
+ * - 多注模式：直接把 n 注加入 draft
+ * - 单注模式且 n=5：自动切到多注并把 5 注加入 draft（选区只能显示一组，直接入票最直观）
+ * - 复式/胆拖/直位复式：选区只能容纳一组号码，生成一组随机组合填入
+ */
+function quickRandom(n) {
+  if (playType.value === 'multi') {
+    for (let i = 0; i < n; i++) draft.value = [...draft.value, randomSingleTicket()]
+    ElMessage.success(`已机选 ${n} 注`)
+    return
+  }
+  if (playType.value === 'single' && n === 5) {
+    playType.value = 'multi'
+    for (let i = 0; i < n; i++) draft.value = [...draft.value, randomSingleTicket()]
+    ElMessage.success('已切换到多注并机选 5 注，可继续编辑/移除后保存')
+    return
+  }
+  randomPick()
 }
 
 function clearSel() {
@@ -613,7 +693,15 @@ function savePick() {
     prize: checked,
     hits: multi.hits,
     hitCount: multi.hitCount,
-    totalBonus: multi.totalBonus
+    totalBonus: multi.totalBonus,
+    // 购彩记录 / 盈亏统计（Feature 6）：默认未投注；兑奖金额由核对结果回填
+    purchased: false,
+    purchaseDate: '',
+    cost: 0,
+    prizeAmount: multi.totalBonus || 0,
+    // 分组 / 标签（Feature 7）
+    groupId: null,
+    tags: []
   }
   picks.value = [pick, ...picks.value]
   // 写入 IndexedDB + 派发 lp-picks-updated 事件，让 SavedPicksList 立即刷新
@@ -635,7 +723,16 @@ function jumpToCheck() {
 async function refreshFromStorage() {
   try {
     const arr = await get(STORE_PICKS, STORE_KEY())
-    picks.value = Array.isArray(arr) ? arr : []
+    // 数据迁移：旧记录缺新字段时回填默认值；prizeAmount 从 totalBonus 回填
+    picks.value = (Array.isArray(arr) ? arr : []).map((p) => ({
+      ...p,
+      purchased: !!p.purchased,
+      purchaseDate: p.purchaseDate || '',
+      cost: typeof p.cost === 'number' ? p.cost : 0,
+      prizeAmount: typeof p.prizeAmount === 'number' ? p.prizeAmount : (p.totalBonus || 0),
+      groupId: p.groupId ?? null,
+      tags: Array.isArray(p.tags) ? p.tags : []
+    }))
   } catch (e) {
     picks.value = []
   }
@@ -644,6 +741,18 @@ async function refreshFromStorage() {
 const picksCount = computed(() => picks.value.length)
 const hitCount = computed(() => picks.value.reduce((a, p) => a + (p.hitCount || 0), 0))
 
+// ---------- 盈亏统计（Feature 6）：仅统计已标记投注的票 ----------
+const purchasedPicks = computed(() => picks.value.filter((p) => p.purchased))
+const totalCost = computed(() => purchasedPicks.value.reduce((a, p) => a + (p.cost || 0), 0))
+const totalPrize = computed(() => purchasedPicks.value.reduce((a, p) => a + (p.prizeAmount || 0), 0))
+const netProfit = computed(() => totalPrize.value - totalCost.value)
+const winRate = computed(() => {
+  const n = purchasedPicks.value.length
+  if (!n) return 0
+  const won = purchasedPicks.value.filter((p) => (p.prizeAmount || 0) > 0).length
+  return Math.round((won / n) * 100)
+})
+
 function onPicksUpdated(e) {
   if (e && e.detail && e.detail.key === props.cfg.key) refreshFromStorage()
 }
@@ -651,6 +760,11 @@ function onPicksUpdated(e) {
 onMounted(() => {
   refreshFromStorage()
   window.addEventListener('lp-picks-updated', onPicksUpdated)
+})
+
+// keep-alive 切回本页时刷新（在查中奖页标记投注/改分组后回来看 P&L 即时生效）
+onActivated(() => {
+  refreshFromStorage()
 })
 
 onBeforeUnmount(() => {
@@ -721,6 +835,61 @@ onBeforeUnmount(() => {
 .mp-summary-cta {
   flex-shrink: 0;
   font-weight: 700;
+}
+
+/* 盈亏统计卡片 */
+.pl-card {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card-inset);
+}
+.pl-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.pl-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.pl-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.pl-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+.pl-cell {
+  text-align: center;
+}
+.pl-num {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.pl-num.cost { color: var(--text-primary); }
+.pl-num.win { color: var(--accent, #f6c453); }
+.pl-num.pos { color: #67c23a; }
+.pl-num.neg { color: #ff6b6b; }
+.pl-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.pl-hint {
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+@media (max-width: 768px) {
+  .pl-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
 }
 @media (max-width: 768px) {
   .mp-summary { flex-wrap: wrap; }

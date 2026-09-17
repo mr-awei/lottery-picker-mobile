@@ -791,29 +791,29 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
     return pool
   }
 
-  function generateRed(s: ScoreStats, pool: number[], forbidCold: boolean, locked: number[] | undefined) {
+  function generateRed(s: ScoreStats, pool: number[], forbidCold: boolean, locked: number[] | undefined, excluded: number[] = []) {
     const lr = normLocked(cfg.redMax ?? 0, locked)
     const need = (cfg.redCount ?? 0) - lr.length
     if (need <= 0) return { red: lr.slice(0, cfg.redCount ?? 0), score: null }
     // 真随机：不应用任何策略
     if (!m.length) {
-      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n))
+      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n) && !excluded.includes(n))
       return { red: [...lr, ...randPick(poolArr, need)].sort((a, b) => a - b), score: null }
     }
-    const filteredPool = pool.filter((n) => !lr.includes(n))
+    const filteredPool = pool.filter((n) => !lr.includes(n) && !excluded.includes(n))
     const r = pickBest(cfg, s, filteredPool, need, m, { forbidCold, strict: true, tries: 600 })
     return { red: [...lr, ...r.red].sort((a, b) => a - b), score: r.score }
   }
 
-  function generateRedSet(s: ScoreStats, pool: number[], k: number, forbidCold: boolean, locked: number[] | undefined) {
+  function generateRedSet(s: ScoreStats, pool: number[], k: number, forbidCold: boolean, locked: number[] | undefined, excluded: number[] = []) {
     const lr = normLocked(cfg.redMax ?? 0, locked)
     const need = k - lr.length
     if (need <= 0) return { red: lr.slice(0, k), score: null }
     if (!m.length) {
-      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n))
+      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n) && !excluded.includes(n))
       return { red: [...lr, ...randPick(poolArr, need)].sort((a, b) => a - b), score: null }
     }
-    const filteredPool = pool.filter((n) => !lr.includes(n))
+    const filteredPool = pool.filter((n) => !lr.includes(n) && !excluded.includes(n))
     const r = pickBest(cfg, s, filteredPool, need, m, { forbidCold, strict: false, tries: 800 })
     return { red: [...lr, ...r.red].sort((a, b) => a - b), score: r.score }
   }
@@ -827,12 +827,12 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
     return pool
   }
 
-  function generateBlue(s: ScoreStats, pool: number[], locked: number[] | undefined): number[] {
+  function generateBlue(s: ScoreStats, pool: number[], locked: number[] | undefined, excluded: number[] = []): number[] {
     const lb = normLocked(cfg.blueMax ?? 0, locked)
     const need = (cfg.blueCount ?? 0) - lb.length
     if (need <= 0) return lb.slice(0, cfg.blueCount ?? 0)
     if (!useHot) {
-      const poolArr = range(cfg.blueMax ?? 0).filter((n) => !lb.includes(n))
+      const poolArr = range(cfg.blueMax ?? 0).filter((n) => !lb.includes(n) && !excluded.includes(n))
       return [...lb, ...randPick(poolArr, need)].sort((a, b) => a - b)
     }
     // 修复（1.8.3）：原来误用传入的红球加权池（pool 是 buildPool 的红球池！），
@@ -855,7 +855,12 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
   function generatePlay(draws: Draw[] | null, play: Ticket | undefined, preS?: ScoreStats, prePool?: number[]) {
     if (!draws) draws = []
     const s = preS || computeStats(cfg, draws)
-    const pool = prePool || buildPool(s)
+    const pool0 = prePool || buildPool(s)
+    // 杀号排除：从采样池中剔除用户标记的号码
+    const excl = (play && play.excluded) || {}
+    const exRed = normLocked(cfg.redMax ?? 0, excl.red)
+    const exBlue = normLocked(cfg.blueMax ?? 0, excl.blue)
+    const pool = pool0.filter((n) => !exRed.includes(n))
     const type = play ? play.type : 'single'
     const append = !!(cfg.zhuijia && play && play.append)
     const locked = (play && play.locked) || {}
@@ -866,8 +871,8 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       const n = Math.max(1, Math.min(20, (play && play.n) || 3))
       const tickets: Array<{ red: number[]; blue: number[]; score: RedScore | Record<string, unknown> }> = []
       for (let i = 0; i < n; i++) {
-        const t = generateRed(s, pool, i === 0, lockedRed)
-        const blue = generateBlue(s, pool, lockedBlue)
+        const t = generateRed(s, pool, i === 0, lockedRed, exRed)
+        const blue = generateBlue(s, pool, lockedBlue, exBlue)
         const score = t.score || scoreRed(cfg, t.red, s)
         tickets.push({ red: t.red, blue, score })
       }
@@ -880,10 +885,10 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       const r = Math.max(cfg.redCount + 1, Math.min(cfg.redMax, (play && play.redCount) || cfg.redCount + 1))
       const b = Math.max(cfg.blueCount, Math.min(cfg.blueMax, (play && play.blueCount) || cfg.blueCount))
       const lr = lockedRed.slice(0, r)
-      const rs = generateRedSet(s, pool, r, false, lr)
+      const rs = generateRedSet(s, pool, r, false, lr, exRed)
       const lb = lockedBlue.slice(0, b)
       const needB = b - lb.length
-      const bluePool = buildBluePool(s).filter((n) => !lb.includes(n))
+      const bluePool = buildBluePool(s).filter((n) => !lb.includes(n) && !exBlue.includes(n))
       const blues = [...lb, ...randPickUnique(bluePool, needB)].sort((a, b) => a - b)
       const ticket = { type: 'duplex' as const, red: rs.red, blue: blues, append }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
@@ -895,10 +900,11 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       const tuoN = Math.max(cfg.redCount - danN + 1, Math.min(cfg.redMax - danN, (play && play.tuoN) || cfg.redCount - danN + 2))
       // 锁定红球优先作为胆码；超出部分忽略
       const lr = lockedRed.slice(0, danN)
-      const dan = generateRedSet(s, pool, danN, false, lr)
+      const dan = generateRedSet(s, pool, danN, false, lr, exRed)
       const restPool: number[] = []
       for (let i = 1; i <= (cfg.redMax ?? 0); i++) {
         if (dan.red.includes(i)) continue
+        if (exRed.includes(i)) continue
         let w = 2
         if (useHot && s.hot.includes(i)) w = 4
         if (useHot && s.cold.includes(i)) w = 1
@@ -912,19 +918,19 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       if (blueDanN > 0) {
         const lb = normLocked(cfg.blueMax ?? 0, lockedBlue).slice(0, blueDanN)
         const needD = blueDanN - lb.length
-        const bpool = buildBluePool(s).filter((n) => !lb.includes(n))
+        const bpool = buildBluePool(s).filter((n) => !lb.includes(n) && !exBlue.includes(n))
         const blueDan = needD > 0
           ? [...lb, ...randPickUnique(bpool, needD)].sort((a, b) => a - b).slice(0, blueDanN)
           : [...lb].sort((a, b) => a - b)
         const restBpool = bpool.filter((n) => !blueDan.includes(n))
-        const blueTuo = randPickUnique(restBpool.length >= blueTuoN ? restBpool : [...restBpool, ...range(cfg.blueMax ?? 0).filter((n) => !blueDan.includes(n))], blueTuoN).sort((a, b) => a - b)
+        const blueTuo = randPickUnique(restBpool.length >= blueTuoN ? restBpool : [...restBpool, ...range(cfg.blueMax ?? 0).filter((n) => !blueDan.includes(n) && !exBlue.includes(n))], blueTuoN).sort((a, b) => a - b)
         ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blueDan, blueTuo, blue: [...blueDan, ...blueTuo].slice(0, cfg.blueMax ?? 0), append }
       } else {
         // 复式胆拖：蓝球多选（官方玩法，双色球蓝球 1~16 任选、大乐透后区多选）
         const blueN = Math.max(cfg.blueCount, Math.min(cfg.blueMax, (play && play.blueCount) || cfg.blueCount))
         const lb = normLocked(cfg.blueMax ?? 0, lockedBlue).slice(0, blueN)
         const needB = blueN - lb.length
-        const bpool = buildBluePool(s).filter((n) => !lb.includes(n))
+        const bpool = buildBluePool(s).filter((n) => !lb.includes(n) && !exBlue.includes(n))
         const blues = needB > 0 ? [...lb, ...randPickUnique(bpool, needB)].sort((a, b) => a - b) : [...lb].sort((a, b) => a - b)
         ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blue: blues, append }
       }
@@ -933,8 +939,8 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
     }
 
     // single（默认）
-    const t = generateRed(s, pool, true, lockedRed)
-    const blue = generateBlue(s, pool, lockedBlue)
+    const t = generateRed(s, pool, true, lockedRed, exRed)
+    const blue = generateBlue(s, pool, lockedBlue, exBlue)
     const ticket = { type: 'single' as const, red: t.red, blue, append }
     const scored = scoreTicketPlay(cfg, draws, ticket, s)
     return { ticket, stats: s, ...scored }
