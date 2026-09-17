@@ -103,7 +103,7 @@ export async function cancelAllNotifications() {
       ids.push({ id: notifyId(gi, 0) })
       ids.push({ id: notifyId(gi, 1) })
     })
-    await LocalNotifications.cancel(ids)
+    await LocalNotifications.cancel({ notifications: ids })
   } catch {
     /* 浏览器环境 reject，忽略 */
   }

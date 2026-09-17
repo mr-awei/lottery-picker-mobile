@@ -6,9 +6,6 @@
     "allowMixedContent": false,
     "backgroundColor": "#0c101e"
   },
-  "server": {
-    "androidScheme": "https"
-  },
   "plugins": {
     "SplashScreen": {
       "launchAutoHide": false,
