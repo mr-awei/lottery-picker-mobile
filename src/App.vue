@@ -323,7 +323,7 @@ function onAutoRefreshChange(e) {
 }
 
 onMounted(async () => {
-  // 首屏当前彩种数据到达后再手动隐藏启动屏（launchAutoHide=false），减少白屏闪烁
+  // 手动隐藏启动屏（launchAutoHide=false）：双保险，不依赖数据加载
   const hideSplash = async () => {
     try {
       const { SplashScreen } = await import('@capacitor/splash-screen')
@@ -332,8 +332,13 @@ onMounted(async () => {
       /* 非原生环境或插件未加载时静默忽略 */
     }
   }
-  // 先加载首屏彩种，数据到达立即隐藏启动屏；其余彩种在后台串行加载
-  loadGame(activeGame.value, false).finally(hideSplash)
+  // 超时保底：3秒后强制隐藏，防止数据加载挂起导致永久黑屏
+  const splashTimer = setTimeout(hideSplash, 3000)
+  // 首屏数据到达后立即隐藏（正常路径）
+  loadGame(activeGame.value, false).finally(() => {
+    clearTimeout(splashTimer)
+    hideSplash()
+  })
   ;(async () => {
     for (const g of GAME_KEYS) {
       if (g === activeGame.value || draws[g]) continue
