@@ -1,7 +1,6 @@
-// 旋转矩阵（Wheeling System）：从号码池中按矩阵公式生成保证覆盖的精简组合
-// 用贪心覆盖设计（Covering Design）动态生成任意 poolSize 的缩水公式，无需硬编码
+// 旋转矩阵（Wheeling System）：贪心覆盖设计动态生成，支持多保证等级
+// 优化：随机重启贪心（多次洗牌取最优），注数逼近标准公式
 
-/** 旋转矩阵公式定义 */
 export interface WheelingFormula {
   name: string
   poolSize: number
@@ -39,44 +38,73 @@ function containsAll(line: number[], subset: number[]): boolean {
   return true
 }
 
+/** Fisher-Yates 洗牌 */
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 /**
- * 贪心覆盖设计：生成最少的 pickSize-子集，使得任意 guarantee-子集至少被一行覆盖。
- * 每轮选覆盖未覆盖 t-子集最多的那行，直到全部覆盖。
- * 复杂度可接受：poolSize≤12, pickSize≤6 时 <100ms。
+ * 单次贪心覆盖：按行顺序遍历，每次选覆盖未覆盖 t-子集最多的行。
+ * @param lines 候选行（可预洗牌实现随机重启）
+ * @param subsets 全部 t-子集
+ * @param guarantee t
  */
-function greedyCovering(poolSize: number, pickSize: number, guarantee: number): number[][] {
-  const allLines = combos(poolSize, pickSize)
-  const allSubsets = combos(poolSize, guarantee)
-  const uncovered = new Set<number>(allSubsets.map((_, i) => i))
-  const subsetArr = allSubsets
+function greedyOnce(lines: number[][], subsets: number[][], guarantee: number): number[][] {
+  const uncovered = new Set<number>(subsets.map((_, i) => i))
   const result: number[][] = []
+  const lineOrder = lines
 
   while (uncovered.size > 0) {
-    let bestLine: number[] | null = null
+    let bestIdx = -1
     let bestCount = -1
     let bestCovered: number[] = []
 
-    for (const line of allLines) {
+    for (let li = 0; li < lineOrder.length; li++) {
+      const line = lineOrder[li]
       const covered: number[] = []
       for (const si of uncovered) {
-        if (containsAll(line, subsetArr[si])) {
-          covered.push(si)
-        }
+        if (containsAll(line, subsets[si])) covered.push(si)
       }
       if (covered.length > bestCount) {
         bestCount = covered.length
-        bestLine = line
+        bestIdx = li
         bestCovered = covered
         if (bestCount === uncovered.size) break
       }
     }
 
-    if (!bestLine || bestCount <= 0) break
-    result.push(bestLine)
+    if (bestIdx < 0 || bestCount <= 0) break
+    result.push(lineOrder[bestIdx])
     for (const si of bestCovered) uncovered.delete(si)
   }
 
   return result
+}
+
+/**
+ * 随机重启贪心覆盖设计：多次洗牌贪心，取注数最少的解。
+ * restarts 次迭代，poolSize≤12 时 <200ms。
+ */
+function greedyCovering(poolSize: number, pickSize: number, guarantee: number, restarts = 30): number[][] {
+  const allLines = combos(poolSize, pickSize)
+  const allSubsets = combos(poolSize, guarantee)
+  let best: number[][] | null = null
+
+  for (let r = 0; r < restarts; r++) {
+    const lines = r === 0 ? allLines : shuffle(allLines)
+    const result = greedyOnce(lines, allSubsets, guarantee)
+    if (!best || result.length < best.length) {
+      best = result
+      if (result.length <= Math.ceil(allSubsets.length / combos(pickSize, guarantee).length)) break
+    }
+  }
+
+  return best || []
 }
 
 /** 全组合公式（中 k 保 k） */
@@ -85,21 +113,34 @@ function fullCombo(name: string, poolSize: number, pickSize: number): WheelingFo
   return { name, poolSize, pickSize, guarantee: pickSize, lines, count: lines.length }
 }
 
-/** 动态生成某彩种的全部公式（每个 poolSize 两个：缩水保 pickSize-1 + 全保） */
+/**
+ * 动态生成某彩种全部公式。
+ * 保证等级：pickSize-2（激进缩水）、pickSize-1（标准缩水）、pickSize（全保）
+ */
 function buildFormulas(gameKey: string, pickSize: number, maxPool: number): WheelingFormula[] {
   const formulas: WheelingFormula[] = []
   for (let pool = pickSize + 1; pool <= maxPool; pool++) {
-    // 缩水版：中 pickSize 保 pickSize-1
-    const reducedLines = greedyCovering(pool, pickSize, pickSize - 1)
+    // 激进缩水：中 pickSize 保 pickSize-2（注数最少，老彩民资金有限常用）
+    const aggressive = greedyCovering(pool, pickSize, pickSize - 2, 20)
+    formulas.push({
+      name: `选${pool}中${pickSize}保${pickSize - 2}`,
+      poolSize: pool,
+      pickSize,
+      guarantee: pickSize - 2,
+      lines: aggressive,
+      count: aggressive.length
+    })
+    // 标准缩水：中 pickSize 保 pickSize-1（最常用，资金充裕型）
+    const reduced = greedyCovering(pool, pickSize, pickSize - 1, 30)
     formulas.push({
       name: `选${pool}中${pickSize}保${pickSize - 1}`,
       poolSize: pool,
       pickSize,
       guarantee: pickSize - 1,
-      lines: reducedLines,
-      count: reducedLines.length
+      lines: reduced,
+      count: reduced.length
     })
-    // 全保版：中 pickSize 保 pickSize
+    // 全保：中 pickSize 保 pickSize（全组合）
     formulas.push(fullCombo(`选${pool}中${pickSize}全保`, pool, pickSize))
   }
   return formulas
