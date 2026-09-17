@@ -109,7 +109,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
+import { echarts, chartTheme, tipStyle, onThemeChange, saveAsImageToolbox } from '../utils/echarts-setup'
 import { getProvinceCoord } from '../utils/map-data'
 import { fmtDate, fmtMoney, pad2 } from '../utils/game-config'
 // china.json（~582KB）改为动态 import：首次渲染地图时才加载并 registerMap，不进主 chunk
@@ -270,6 +270,7 @@ async function renderMap() {
   const maxVal = Math.max(1, ...values)
   mapChart.setOption(
     {
+      toolbox: saveAsImageToolbox(),
       animationDuration: 600,
       animationEasing: 'cubicOut',
       tooltip: {
@@ -355,6 +356,7 @@ function renderBar() {
   }, {})
   barChart.setOption(
     {
+      toolbox: saveAsImageToolbox(),
       animationDuration: 600,
       animationEasing: 'cubicOut',
       tooltip: {
@@ -432,6 +434,7 @@ function renderTrend() {
   const counts = rows.map((d) => (typeof d.firstPrizeCount === 'number' ? d.firstPrizeCount : null))
   trendChart.setOption(
     {
+      toolbox: saveAsImageToolbox(),
       animationDuration: 600,
       animationEasing: 'cubicOut',
       tooltip: {

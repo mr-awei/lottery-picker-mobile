@@ -102,7 +102,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
+import { echarts, chartTheme, tipStyle, onThemeChange, saveAsImageToolbox } from '../utils/echarts-setup'
 import { fmtMoney, fmtDate } from '../utils/game-config'
 
 const props = defineProps({
@@ -219,6 +219,7 @@ function render() {
   if (!mainChart && mainEl.value) mainChart = echarts.init(mainEl.value)
   if (!mainChart) return
   mainChart.setOption({
+    toolbox: saveAsImageToolbox(),
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
@@ -279,6 +280,7 @@ function renderPayout(t) {
   if (!payoutChart && payoutEl.value) payoutChart = echarts.init(payoutEl.value)
   if (!payoutChart) return
   payoutChart.setOption({
+    toolbox: saveAsImageToolbox(),
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',

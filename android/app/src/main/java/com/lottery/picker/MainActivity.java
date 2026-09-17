@@ -2,6 +2,8 @@ package com.lottery.picker;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.WebView;
 import android.view.View;
@@ -9,9 +11,13 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 public class MainActivity extends BridgeActivity {
+    // App Shortcuts 传入的 deep link host（ai / check / mypicks），onCreate/onNewIntent 捕获后写入 localStorage
+    private String shortcutHost = null;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        handleShortcutIntent(getIntent());
         // 修正：Capacitor 在 WebView < 140 时把 systemBars inset 先清零再算安全区，
         // 导致注入的 --safe-area-inset-* 恒为 0（已知 bug），env(safe-area-inset-*) 也因
         // Chromium bug 返回 0。这里用 WindowInsetsCompat 读取真实状态栏/导航栏高度，
@@ -19,10 +25,49 @@ public class MainActivity extends BridgeActivity {
         // 避免顶栏被系统状态栏遮挡。WebView ≥ 140 时原生 env() 生效，本注入同样安全兼容。
         View decor = getWindow().getDecorView();
         decor.post(this::injectSafeArea);
+        decor.post(this::applyShortcutToWebView);
         ViewCompat.setOnApplyWindowInsetsListener(decor, (v, insets) -> {
             injectSafeArea();
             return insets;
         });
+    }
+
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleShortcutIntent(intent);
+        applyShortcutToWebView();
+    }
+
+    /** 解析 shortcut 传入的 deep link（scheme=lotterypicker），取 host 作为目标 tab 标识 */
+    private void handleShortcutIntent(Intent intent) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+        if ("lotterypicker".equals(data.getScheme())) {
+            shortcutHost = data.getHost(); // ai / check / mypicks
+        }
+    }
+
+    /**
+     * 把 shortcut host 写入 localStorage（Vue 层启动时读取并切换 tab），
+     * 同时派发 CustomEvent，App 已在前台时即时响应。
+     */
+    private void applyShortcutToWebView() {
+        if (shortcutHost == null) return;
+        Bridge bridge = getBridge();
+        if (bridge == null) return;
+        WebView wv = bridge.getWebView();
+        if (wv == null) return;
+        final String host = shortcutHost;
+        // 消费一次后清空，避免下次冷启动误触
+        shortcutHost = null;
+        wv.post(() -> wv.evaluateJavascript(
+            "try{" +
+            "localStorage.setItem('lp-shortcut-tab','" + host + "');" +
+            "window.dispatchEvent(new CustomEvent('lp-shortcut',{detail:{tab:'" + host + "'}}));" +
+            "}catch(e){}",
+            null));
     }
 
     private void injectSafeArea() {
@@ -41,7 +86,7 @@ public class MainActivity extends BridgeActivity {
         float topDp = topPx / density;
         float bottomDp = bottomPx / density;
         // 打印真实测量的状态栏/导航栏高度，便于 adb logcat 验证注入值是否与系统真实 inset 一致
-        android.util.Log.d("LpSafeArea", "insets top=" + topPx + "px(" + topDp + "dp) bottom=" + bottomPx + "px(" + bottomDp + "dp) density=" + density);
+        android.util.Log.d("LpSafeArea", "insets top=" + topPx + "px(" + topDp + "dp) bottom=" + bottomPx + "px(" + bottomDp + "px) density=" + density);
         final String top = topDp + "px";
         final String bottom = bottomDp + "px";
         wv.post(() -> wv.evaluateJavascript(

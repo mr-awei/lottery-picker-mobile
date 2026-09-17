@@ -16,7 +16,8 @@ import {
   DatasetComponent,
   GeoComponent,
   DataZoomComponent,
-  MarkLineComponent
+  MarkLineComponent,
+  ToolboxComponent
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
@@ -24,7 +25,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 // 替代原先 `import * as echarts from 'echarts'` 全量引入（主包显著瘦身）。
 // 图表：折线 / 柱状 / 饼图 / 散点 / 涟漪散点 / 地图
 // 组件：直角坐标系(grid/xAxis/yAxis) / 提示框 / 图例 / 视觉映射 / 标题 / 数据集 /
-//       地理坐标系(geo) / 缩放(dataZoom) / 标线(markLine)
+//       地理坐标系(geo) / 缩放(dataZoom) / 标线(markLine) / 工具箱(toolbox 保存图片)
 echarts.use([
   LineChart,
   BarChart,
@@ -41,6 +42,7 @@ echarts.use([
   GeoComponent,
   DataZoomComponent,
   MarkLineComponent,
+  ToolboxComponent,
   CanvasRenderer
 ])
 
@@ -89,4 +91,15 @@ export function onThemeChange(fn) {
   const handler = () => fn()
   window.addEventListener('lp-theme-change', handler)
   return () => window.removeEventListener('lp-theme-change', handler)
+}
+
+/** 工具箱：仅启用"保存图片"，供各图表 option 合并使用 */
+export function saveAsImageToolbox() {
+  return {
+    right: 8,
+    top: 0,
+    feature: {
+      saveAsImage: { title: '保存图片', backgroundColor: 'transparent' }
+    }
+  }
 }

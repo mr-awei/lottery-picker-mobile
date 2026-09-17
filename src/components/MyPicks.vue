@@ -154,6 +154,7 @@
           <el-button size="small" type="primary" :disabled="!draft.length || saving" @click="savePick">保存多注票（{{ draft.length }} 注）</el-button>
           <el-button size="small" type="danger" plain @click="clearSel">清空选区</el-button>
         </template>
+        <el-button size="small" plain :disabled="!hasShareTicket" @click="openShare">分享</el-button>
         <span class="dim" style="font-size: 12px">可只自定义部分号码，剩余由 AI 算法补齐（与 AI 选号逻辑一致）</span>
         <span v-if="liveInfo" class="live-score">
           <template v-if="liveInfo.partial">
@@ -222,6 +223,16 @@
       </div>
       <div class="pl-hint">在「查中奖」列表每张票上可标记投注、录入奖金。彩票为独立随机事件，盈亏仅为个人记录。</div>
     </div>
+
+    <!-- 选号结果分享图预览 -->
+    <canvas ref="shareCanvasRef" style="display:none"></canvas>
+    <el-dialog v-model="shareVisible" title="分享选号结果" width="86%" align-center class="share-dialog">
+      <img v-if="shareDataUrl" :src="shareDataUrl" class="share-preview" alt="选号分享图" />
+      <template #footer>
+        <el-button size="small" @click="shareVisible = false">关闭</el-button>
+        <el-button size="small" type="primary" @click="saveShareImage">保存图片</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -229,6 +240,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onActivated } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
+import { drawShareImage, downloadShareImage, todayText } from '../utils/share-image'
 import { scoreTicketPlay, calcPlay, createPickerEngine, calcDirectPlay, computeDirectStats, expandDirectTicket, scoreDigits, scoreItemsFor } from '../utils/picker-engine'
 import { checkTicketHistory, checkTicketHistoryMulti } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
@@ -719,6 +731,33 @@ function jumpToCheck() {
   window.dispatchEvent(new CustomEvent('lp-switch-tab', { detail: { group: 'check', tab: 'filecheck' }}))
 }
 
+// ---------- 选号结果分享图 ----------
+const shareCanvasRef = ref(null)
+const shareVisible = ref(false)
+const shareDataUrl = ref('')
+
+/** 当前是否有可分享的完整票（与保存判定一致：多注看 draft，单注看已选区） */
+const hasShareTicket = computed(() => {
+  if (playType.value === 'multi') return draft.value.length > 0 || hasLocked.value
+  return hasLocked.value
+})
+
+function openShare() {
+  if (!hasShareTicket.value || !shareCanvasRef.value) return
+  // 未选完整时先 AI 补齐，保证分享的是完整号码
+  if (needsFill()) aiFill()
+  const ticket = currentTicket()
+  drawShareImage(shareCanvasRef.value, props.cfg, ticket, todayText())
+  shareDataUrl.value = shareCanvasRef.value.toDataURL('image/png')
+  shareVisible.value = true
+}
+
+function saveShareImage() {
+  if (!shareCanvasRef.value) return
+  downloadShareImage(shareCanvasRef.value, `${props.cfg.key}-选号分享-${todayText()}.png`)
+  ElMessage.success('分享图已保存')
+}
+
 /** 从 IndexedDB 读取保存的票（用于摘要卡片显示） */
 async function refreshFromStorage() {
   try {
@@ -1148,6 +1187,12 @@ onBeforeUnmount(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 2px;
+}
+
+.share-preview {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
 }
 </style>
 

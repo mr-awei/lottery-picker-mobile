@@ -143,18 +143,30 @@
     </div>
     <div class="ai-save-row" style="margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
       <el-button type="primary" plain :disabled="!result || saving" @click="saveToPicks">保存到自选号</el-button>
+      <el-button plain :disabled="!result" @click="openShare">分享</el-button>
       <span v-if="savedTip" class="dim" style="font-size: 12px; color: #67c23a">{{ savedTip }}</span>
     </div>
     <div class="dim" style="margin-top: 10px">
       统计口径：热号=近 10 期出现 ≥3 次；冷号=当前遗漏 ≥10 期；主推不含冷号。单注金额 2 元{{ cfg.zhuijia ? '，大乐透追加每注 +1 元' : '' }}。
     </div>
+
+    <!-- 选号结果分享图预览 -->
+    <canvas ref="shareCanvasRef" style="display:none"></canvas>
+    <el-dialog v-model="shareVisible" title="分享选号结果" width="86%" align-center class="share-dialog">
+      <img v-if="shareDataUrl" :src="shareDataUrl" class="share-preview" alt="选号分享图" />
+      <template #footer>
+        <el-button size="small" @click="shareVisible = false">关闭</el-button>
+        <el-button size="small" type="primary" @click="saveShareImage">保存图片</el-button>
+      </template>
+    </el-dialog>
   </template>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
+import { drawShareImage, downloadShareImage, todayText } from '../utils/share-image'
 import { calcPlay, calcDirectPlay, scoreTicketPlay, expandDirectTicket, scoreDigits, computeDirectStats, scoreItemsFor } from '../utils/picker-engine'
 import { checkTicketHistory } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
@@ -337,6 +349,26 @@ async function saveToPicks() {
     setTimeout(() => { saving.value = false }, 600)
   }
 }
+
+// ---------- 选号结果分享图 ----------
+const shareCanvasRef = ref(null)
+const shareVisible = ref(false)
+const shareDataUrl = ref('')
+
+function openShare() {
+  if (!result.value || !shareCanvasRef.value) return
+  const ticket = { ...result.value.ticket, multiple: multiple.value }
+  if (props.cfg.zhuijia) ticket.append = append.value
+  drawShareImage(shareCanvasRef.value, props.cfg, ticket, todayText())
+  shareDataUrl.value = shareCanvasRef.value.toDataURL('image/png')
+  shareVisible.value = true
+}
+
+function saveShareImage() {
+  if (!shareCanvasRef.value) return
+  downloadShareImage(shareCanvasRef.value, `${props.cfg.key}-选号分享-${todayText()}.png`)
+  ElMessage.success('分享图已保存')
+}
 </script>
 
 <style scoped>
@@ -424,5 +456,10 @@ async function saveToPicks() {
   .ticket-head { flex-wrap: wrap; gap: 6px; }
   .ticket-balls { flex-wrap: wrap; }
   .score-bar { flex-wrap: wrap; }
+}
+.share-preview {
+  display: block;
+  width: 100%;
+  border-radius: 12px;
 }
 </style>

@@ -24,7 +24,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
+import { echarts, chartTheme, tipStyle, onThemeChange, saveAsImageToolbox } from '../utils/echarts-setup'
 import { aggregateWinners } from '../utils/map-data'
 import { fmtDate, fmtMoney } from '../utils/game-config'
 // china.json（~582KB）改为动态 import：首次进入地图视图时才加载并 registerMap，
@@ -87,6 +87,7 @@ async function renderMap() {
   const maxCount = Math.max(1, ...points.value.map((p) => p.count))
   mapChart.setOption(
     {
+      toolbox: saveAsImageToolbox(),
       animationDuration: 600,
       animationEasing: 'cubicOut',
       tooltip: {
@@ -167,6 +168,7 @@ function renderBar() {
   }, {})
   barChart.setOption(
     {
+      toolbox: saveAsImageToolbox(),
       animationDuration: 600,
       animationEasing: 'cubicOut',
       tooltip: {

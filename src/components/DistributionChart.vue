@@ -28,7 +28,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
+import { echarts, chartTheme, tipStyle, onThemeChange, saveAsImageToolbox } from '../utils/echarts-setup'
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -500,6 +500,7 @@ function render() {
     else if (chartType.value === 'miss') option = buildMissOption(s)
     else option = buildRatioOption(s)
   }
+  if (!option.toolbox) option.toolbox = saveAsImageToolbox()
   chart.setOption(option, true)
   if (landscapeOpen.value) renderLandscape()
 }

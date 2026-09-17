@@ -80,6 +80,11 @@ import SplitTool from './SplitTool.vue'
 import ChasePlan from './ChasePlan.vue'
 import KnowledgeView from './KnowledgeView.vue'
 import SettingsView from './SettingsView.vue'
+import BacktestView from './BacktestView.vue'
+import OmitAnalysis from './OmitAnalysis.vue'
+import BlueAnalysis from './BlueAnalysis.vue'
+import HistorySameView from './HistorySameView.vue'
+import NumberRelationView from './NumberRelationView.vue'
 
 const props = defineProps({
   game: { type: String, required: true },
@@ -94,7 +99,8 @@ const VIEW_KEYS = {
   history: true, distribution: true, trend: true, maxprize: true,
   map: true, pool: true, hotcold: true, matrix: true,
   ai: true, mypicks: true, filecheck: true, split: true, chase: true,
-  knowledge: true, settings: true
+  knowledge: true, settings: true,
+  backtest: true, omit: true, blue: true, historysame: true, relation: true
 }
 
 const active = ref(uiState.tab in VIEW_KEYS ? uiState.tab : 'history')
@@ -117,11 +123,16 @@ const VIEWS = {
   split: SplitTool,
   chase: ChasePlan,
   knowledge: KnowledgeView,
-  settings: SettingsView
+  settings: SettingsView,
+  backtest: BacktestView,
+  omit: OmitAnalysis,
+  blue: BlueAnalysis,
+  historysame: HistorySameView,
+  relation: NumberRelationView
 }
 
 /* 4 个一级 tab（合并原 know+settings 为「我的」）
-   - 数据 (8) | 选号 (4) | 查奖 (1) | 我的 (2) */
+   - 数据 (13) | 选号 (4) | 查奖 (1) | 我的 (2) */
 const navGroups = [
   {
     key: 'data',
@@ -135,7 +146,12 @@ const navGroups = [
       { key: 'map',        label: '中奖地图', icon: 'M9 20l-6 2V6l6-2 6 2 6-2v16l-6 2-6-2zM9 4v16M15 6v16' },
       { key: 'pool',       label: '奖池销量', icon: 'M4 19V9m6 10V5m6 14v-7m4 7H2' },
       { key: 'hotcold',    label: '冷热号',   icon: 'M12 3a5 5 0 00-5 5v1a5 5 0 0010 0V8a5 5 0 00-5-5zM8 15v1a4 4 0 008 0v-1M12 20v2' },
-      { key: 'matrix',     label: '号码矩阵', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' }
+      { key: 'matrix',     label: '号码矩阵', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
+      { key: 'backtest',   label: '策略回测', icon: 'M3 3v18h18M7 15l4-4 3 3 5-6' },
+      { key: 'omit',       label: '遗漏分析', icon: 'M6 4v16M12 4v10M18 4v16M3 20h18' },
+      { key: 'blue',       label: '蓝球分析', icon: 'M12 12m-9 0a9 9 0 1018 0 9 9 0 10-18 0zM12 8v4l3 2' },
+      { key: 'historysame', label: '历史同期', icon: 'M8 2v4M16 2v4M3 8h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z' },
+      { key: 'relation',   label: '号码关系', icon: 'M5 5h4v4H5zM15 15h4v4h-4zM9 7h6M7 9v6' }
     ]
   },
   {
@@ -207,12 +223,42 @@ function onSwitchTab(e) {
   }
 }
 
+/** App Shortcuts（长按图标）host → {group, tab} 映射 */
+const SHORTCUT_TAB_MAP = {
+  ai: { group: 'pick', tab: 'ai' },
+  check: { group: 'check', tab: 'filecheck' },
+  mypicks: { group: 'pick', tab: 'mypicks' }
+}
+
+/** 读取 Android 原生写入的 shortcut tab（冷启动），并清除标记 */
+function applyShortcutTab() {
+  let host = ''
+  try {
+    host = localStorage.getItem('lp-shortcut-tab') || ''
+    if (host) localStorage.removeItem('lp-shortcut-tab')
+  } catch (e) {
+    /* localStorage 不可用 */
+  }
+  const target = SHORTCUT_TAB_MAP[host]
+  if (target) switchToGroupTab(target.group, target.tab)
+}
+
+/** App 已在前台时通过 CustomEvent 即时切换 */
+function onShortcutEvent(e) {
+  const host = e && e.detail && e.detail.tab
+  const target = SHORTCUT_TAB_MAP[host]
+  if (target) switchToGroupTab(target.group, target.tab)
+}
+
 import { onMounted, onBeforeUnmount } from 'vue'
 onMounted(() => {
   window.addEventListener('lp-switch-tab', onSwitchTab)
+  window.addEventListener('lp-shortcut', onShortcutEvent)
+  applyShortcutTab()
 })
 onBeforeUnmount(() => {
   window.removeEventListener('lp-switch-tab', onSwitchTab)
+  window.removeEventListener('lp-shortcut', onShortcutEvent)
 })
 </script>
 

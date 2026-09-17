@@ -91,6 +91,7 @@ import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import LotteryBoard from './components/LotteryBoard.vue'
 import { theme, toggleTheme } from './utils/ui-state'
 import { lotteryApi } from './utils/mobile-api'
+import { scheduleDrawNotifications } from './utils/notification'
 
 const DAILY_TIP_KEY = 'lp-daily-tip'
 const gameSwitchEl = ref(null)
@@ -346,6 +347,8 @@ onMounted(async () => {
   timer = setInterval(autoTick, 60000)
   window.addEventListener('lp-auto-refresh-change', onAutoRefreshChange)
   showDailyTipIfNeeded()
+  // 启动时按本地设置重新调度开奖提醒（浏览器环境内部分支自动 no-op）
+  scheduleDrawNotifications()
 })
 
 onBeforeUnmount(() => {

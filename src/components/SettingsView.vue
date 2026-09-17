@@ -36,6 +36,38 @@
     </div>
 
     <div class="set-card">
+      <div class="set-group-title">开奖提醒</div>
+      <div v-if="!notifSupported" class="notif-tip">仅 Android App 支持开奖提醒</div>
+      <div class="set-row">
+        <div class="set-info">
+          <div class="set-label">开奖提醒总开关</div>
+          <div class="set-desc">在开奖前后推送系统通知，不会错过开奖</div>
+        </div>
+        <el-switch :model-value="notif.enabled" :disabled="!notifSupported" @change="onNotifEnabledChange" />
+      </div>
+      <template v-if="notif.enabled">
+        <div class="set-row">
+          <div class="set-info">
+            <div class="set-label">提醒时机</div>
+            <div class="set-desc">全局生效：开奖前 15 分钟提醒，或开奖后 5 分钟推送结果</div>
+          </div>
+          <el-radio-group v-model="notifTiming" size="small" @change="onNotifTimingChange">
+            <el-radio value="before">开奖前 15 分钟</el-radio>
+            <el-radio value="after">开奖后 5 分钟</el-radio>
+          </el-radio-group>
+        </div>
+        <div class="set-group-title" style="margin-top: 14px">按彩种提醒</div>
+        <div v-for="g in NOTIF_GAMES" :key="g.key" class="set-row">
+          <div class="set-info">
+            <div class="set-label">{{ g.name }}</div>
+            <div class="set-dim dim">{{ g.schedule }}</div>
+          </div>
+          <el-switch v-model="notif.perGame[g.key]" @change="onNotifPerGameChange" />
+        </div>
+      </template>
+    </div>
+
+    <div class="set-card">
       <div class="set-group-title">AI 选号</div>
       <div class="set-row">
         <div class="set-info">
@@ -193,13 +225,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { GAME_CONFIG } from '../utils/game-config'
+import { GAME_CONFIG, GAME_KEYS } from '../utils/game-config'
 import { theme, applyTheme } from '../utils/ui-state'
 import { APP_VERSION } from '../utils/version'
 import { isAccelEnabled, setAccelEnabled, getBackendLabel } from '../utils/gpu-accel'
 import { getCrashLogs, clearCrashLogs, exportCrashLogs } from '../utils/crash-report'
+import {
+  loadNotificationSettings,
+  saveNotificationSettings,
+  scheduleDrawNotifications,
+  requestNotificationPermission,
+  isNotificationSupported
+} from '../utils/notification'
 
 const props = defineProps({
   game: { type: String, required: true }
@@ -301,6 +340,61 @@ function fallbackCopy(text) {
 
 const AUTO_REFRESH_KEY = 'lp-auto-refresh'
 const autoRefresh = ref(localStorage.getItem(AUTO_REFRESH_KEY) !== 'off')
+
+// ---------- 开奖提醒（功能 13） ----------
+const notifSupported = isNotificationSupported()
+const notif = reactive(loadNotificationSettings())
+const NOTIF_GAMES = GAME_KEYS.map((k) => ({
+  key: k,
+  name: GAME_CONFIG[k].name,
+  schedule: GAME_CONFIG[k].drawDaysText || ''
+}))
+// 提醒时机：before=开奖前15分钟，after=开奖后5分钟（映射到 remindBefore/remindAfter）
+const notifTiming = ref(notif.remindAfter ? 'after' : 'before')
+
+function persistNotif() {
+  saveNotificationSettings({
+    enabled: notif.enabled,
+    perGame: { ...notif.perGame },
+    remindBefore: notifTiming.value === 'before',
+    remindAfter: notifTiming.value === 'after'
+  })
+}
+
+async function onNotifEnabledChange(val) {
+  if (val) {
+    await requestNotificationPermission()
+  }
+  notif.enabled = val
+  persistNotif()
+  scheduleDrawNotifications({
+    enabled: notif.enabled,
+    perGame: notif.perGame,
+    remindBefore: notifTiming.value === 'before',
+    remindAfter: notifTiming.value === 'after'
+  })
+  ElMessage.success(val ? '开奖提醒已开启' : '开奖提醒已关闭')
+}
+
+function onNotifTimingChange() {
+  persistNotif()
+  scheduleDrawNotifications({
+    enabled: notif.enabled,
+    perGame: notif.perGame,
+    remindBefore: notifTiming.value === 'before',
+    remindAfter: notifTiming.value === 'after'
+  })
+}
+
+function onNotifPerGameChange() {
+  persistNotif()
+  scheduleDrawNotifications({
+    enabled: notif.enabled,
+    perGame: notif.perGame,
+    remindBefore: notifTiming.value === 'before',
+    remindAfter: notifTiming.value === 'after'
+  })
+}
 
 // AI 选号设置：上限次数 / 暴力模式开关与次数（AiPicker 读取同一 localStorage key）
 const MAX_ATTEMPTS_KEY = 'lp-ai-max-attempts'
@@ -441,6 +535,16 @@ function onViolentAttemptsChange(val) {
   font-size: 14px;
   font-weight: 700;
   color: var(--text-main);
+  margin-bottom: 10px;
+}
+
+.notif-tip {
+  font-size: 12px;
+  color: #b8860b;
+  background: rgba(184, 134, 11, 0.1);
+  border: 1px solid rgba(184, 134, 11, 0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
   margin-bottom: 10px;
 }
 

@@ -1,6 +1,9 @@
 <template>
   <div>
-    <div class="card-title">往期号码（近 {{ draws.length }} 期）</div>
+    <div class="card-row">
+      <div class="card-title">往期号码（近 {{ draws.length }} 期）</div>
+      <el-button size="small" plain class="export-btn" :disabled="!draws.length" @click="exportCsv">导出 CSV</el-button>
+    </div>
     <el-input
       v-model="keyword"
       placeholder="输入期号搜索，如 2026096"
@@ -30,6 +33,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
 
 const props = defineProps({
@@ -50,9 +54,47 @@ function blueList(row) {
   if (row.blue2 != null) list.push(row.blue2)
   return list.filter((b) => b != null)
 }
+
+/** 导出当前彩种近 100 期开奖数据为 CSV（Blob + BOM + a.download，Excel 中文正常） */
+function exportCsv() {
+  if (!props.draws.length) return
+  const rows = [['期号', '开奖日期', '红球', '蓝球', '销售额', '奖池']]
+  props.draws.slice(0, 100).forEach((d) => {
+    const red = (d.red || []).map(pad2).join(' ')
+    const blue = blueList(d).map(pad2).join(' ')
+    rows.push([
+      d.issue,
+      d.date,
+      red,
+      blue,
+      d.sales != null ? String(d.sales) : '',
+      d.pool != null ? String(d.pool) : ''
+    ])
+  })
+  const csv = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\r\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${props.cfg.key}-开奖数据-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('开奖数据 CSV 已导出')
+}
 </script>
 
 <style scoped>
+.card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.export-btn {
+  flex-shrink: 0;
+}
+
 .history-search {
   width: 100%;
   max-width: 100%;
