@@ -27,7 +27,7 @@
         </template>
       </template>
       <template v-else>
-        <div class="zone-label red-label">红球（选 {{ cfg.redCount }} 个）</div>
+        <div class="zone-label red-label">红球（选 {{ cfg.redCount }}~{{ cfg.redMax }} 个，当前 {{ chaseRed.length }}）</div>
         <div class="ball-pool">
           <button
             v-for="n in cfg.redMax"
@@ -37,7 +37,7 @@
             @click="toggleRed(n)"
           >{{ pad2(n) }}</button>
         </div>
-        <div class="zone-label blue-label">蓝球（选 {{ cfg.blueCount }} 个）</div>
+        <div class="zone-label blue-label">蓝球（选 {{ cfg.blueCount }}~{{ cfg.blueMax }} 个，当前 {{ chaseBlue.length }}）</div>
         <div class="ball-pool">
           <button
             v-for="n in cfg.blueMax"
@@ -46,6 +46,9 @@
             :class="{ picked: chaseBlue.includes(n) }"
             @click="toggleBlue(n)"
           >{{ pad2(n) }}</button>
+        </div>
+        <div v-if="isDuplex" class="duplex-info">
+          复式 {{ chaseRed.length }}+{{ chaseBlue.length }} → {{ duplexCombos }} 注 · ¥{{ duplexCombos * 2 }}/期（未加倍）
         </div>
       </template>
 
@@ -177,7 +180,25 @@ const validSel = computed(() => {
   if (isDirect.value) {
     return props.cfg.digits.every((d, di) => chaseDigits.value[di] != null)
   }
-  return chaseRed.value.length === props.cfg.redCount && chaseBlue.value.length === props.cfg.blueCount
+  return chaseRed.value.length >= props.cfg.redCount && chaseBlue.value.length >= props.cfg.blueCount
+})
+
+const isDuplex = computed(() => !isDirect.value && (chaseRed.value.length > props.cfg.redCount || chaseBlue.value.length > props.cfg.blueCount))
+
+function combosCount(n, k) {
+  if (k < 0 || k > n) return 0
+  if (k === 0 || k === n) return 1
+  k = Math.min(k, n - k)
+  let result = 1
+  for (let i = 0; i < k; i++) {
+    result = result * (n - i) / (i + 1)
+  }
+  return Math.round(result)
+}
+
+const duplexCombos = computed(() => {
+  if (isDirect.value) return 1
+  return combosCount(chaseRed.value.length, props.cfg.redCount) * combosCount(chaseBlue.value.length, props.cfg.blueCount)
 })
 
 function toggleRed(n) {
@@ -211,8 +232,8 @@ function randomPick() {
     }
     return a
   }
-  chaseRed.value = shuffle(pool).slice(0, props.cfg.redCount).sort((a, b) => a - b)
-  chaseBlue.value = shuffle(bpool).slice(0, props.cfg.blueCount).sort((a, b) => a - b)
+  chaseRed.value = shuffle(pool).slice(0, Math.min(props.cfg.redCount + 2, props.cfg.redMax)).sort((a, b) => a - b)
+  chaseBlue.value = shuffle(bpool).slice(0, Math.min(props.cfg.blueCount + 1, props.cfg.blueMax)).sort((a, b) => a - b)
 }
 
 function multipleAt(idx) {
@@ -237,7 +258,11 @@ function runSim() {
   }
   const ticket = isDirect.value
     ? { type: 'single', digits: chaseDigits.value.map((v) => (v == null ? 0 : v)), tail: chaseTail.value != null ? chaseTail.value : undefined }
-    : { type: 'single', red: [...chaseRed.value], blue: [...chaseBlue.value] }
+    : isDuplex.value
+      ? { type: 'duplex', red: [...chaseRed.value], blue: [...chaseBlue.value] }
+      : { type: 'single', red: [...chaseRed.value], blue: [...chaseBlue.value] }
+
+  const perTicketCost = isDirect.value ? 2 : duplexCombos.value * 2
 
   const total = props.draws.length
   if (!total) {
@@ -250,7 +275,7 @@ function runSim() {
   for (let i = 0; i < n; i++) {
     const draw = props.draws[i]
     const multiple = multipleAt(i)
-    const cost = multiple * 2
+    const cost = multiple * perTicketCost
     const t = { ...ticket, multiple }
     const res = checkTicket(props.cfg, t, draw)
     const bonus = res.bonus || 0
@@ -302,6 +327,16 @@ const hitCount = computed(() => result.value.filter((r) => r.level > 0).length)
 .blue-label {
   color: var(--blue);
   margin-top: 14px;
+}
+
+.duplex-info {
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(217, 43, 63, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--red);
+  font-weight: 600;
 }
 
 .ball-pool {
