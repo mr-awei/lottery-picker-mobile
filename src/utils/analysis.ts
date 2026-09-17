@@ -152,16 +152,18 @@ export interface BacktestOptions {
 }
 
 const UNIT_PRICE = 2
+/** 每期回测至少需要1期真实历史数据训练，最早期无数据时不回测 */
+const MIN_TRAIN = 1
+
 /**
  * 策略回测核心引擎。
- * draws 最新在前；对每个回测期 i，只用 draws[i+1..]（该期开奖之前的数据）生成号码，
- * 再与 draws[i] 实际开奖比对——严格避免用未来数据。
- * 最早期无历史数据时引擎退化为随机选号，不预留训练期。
+ * draws 最新在前；对每个回测期 i，只用 draws[i+1..]（该期开奖之前的真实数据）生成号码，
+ * 再与 draws[i] 实际开奖比对——严格避免用未来数据，每一期都基于真实历史训练。
  * 异步分批：每 10 期让出一次主线程（setTimeout 0），避免长任务卡死 UI。
  */
 export async function runBacktest(cfg: GameConfig, draws: Draw[], opts: BacktestOptions): Promise<BacktestResult | null> {
-  if (!draws || draws.length < 1) return null
-  const periods = Math.max(1, Math.min(opts.periods, draws.length))
+  if (!draws || draws.length < MIN_TRAIN + 1) return null
+  const periods = Math.max(1, Math.min(opts.periods, draws.length - MIN_TRAIN))
   const perTicket = Math.max(1, Math.min(10, opts.perTicket))
   const engine = createPickerEngine(cfg, opts.methods)
 

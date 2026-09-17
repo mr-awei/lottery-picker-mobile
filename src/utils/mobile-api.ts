@@ -13,7 +13,7 @@ import { get, set, checkQuota, STORE_DRAWS } from './db'
 const UA =
   'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
 
-const MAX_DRAWS = 100
+const MAX_DRAWS = 200
 const FRESH_HOURS = 24
 const CACHE_PREFIX = 'lp-data-'
 
