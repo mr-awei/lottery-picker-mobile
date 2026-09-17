@@ -5,8 +5,8 @@
         android:shortcutId="ai_picker"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="AI 选号"
-        android:shortcutLongLabel="AI 选号">
+        android:shortcutShortLabel="@string/shortcut_ai"
+        android:shortcutLongLabel="@string/shortcut_ai">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="lotterypicker://ai" />
@@ -15,8 +15,8 @@
         android:shortcutId="file_check"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="拍照查奖"
-        android:shortcutLongLabel="拍照查奖">
+        android:shortcutShortLabel="@string/shortcut_check"
+        android:shortcutLongLabel="@string/shortcut_check">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="lotterypicker://check" />
@@ -25,8 +25,8 @@
         android:shortcutId="my_picks"
         android:enabled="true"
         android:icon="@mipmap/ic_launcher"
-        android:shortcutShortLabel="自选号"
-        android:shortcutLongLabel="自选号">
+        android:shortcutShortLabel="@string/shortcut_picks"
+        android:shortcutLongLabel="@string/shortcut_picks">
         <intent
             android:action="android.intent.action.VIEW"
             android:data="lotterypicker://mypicks" />

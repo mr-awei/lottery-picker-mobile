@@ -1,7 +1,10 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">彩票选号器</string>
   <string name="title_activity_main">彩票选号器</string>
   <string name="package_name">com.lottery.picker</string>
   <string name="custom_url_scheme">com.lottery.picker</string>
+  <string name="shortcut_ai">AI 选号</string>
+  <string name="shortcut_check">拍照查奖</string>
+  <string name="shortcut_picks">自选号</string>
 </resources>
