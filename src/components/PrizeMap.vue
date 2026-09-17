@@ -11,6 +11,7 @@
 
     <div v-if="hasWinnerData">
       <div v-show="view === 'map'" ref="mapEl" style="width: 100%; height: clamp(340px, 58vh, 560px)"></div>
+      <div v-if="mapLoadingState && view === 'map'" class="map-loading">地图数据加载中…</div>
       <div v-show="view === 'bar'" ref="barEl" style="width: 100%; height: clamp(340px, 58vh, 560px)"></div>
     </div>
     <el-empty v-else description="该彩种官方接口未提供中奖省份分布数据，暂无统计可展示" style="padding: 80px 0" />
@@ -26,7 +27,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
 import { aggregateWinners } from '../utils/map-data'
 import { fmtDate, fmtMoney } from '../utils/game-config'
-import chinaJson from '../assets/china.json'
+// china.json（~582KB）改为动态 import：首次进入地图视图时才加载并 registerMap，
+// 不打入主 chunk（条形图视图、其他页面完全不下载这份地图数据）
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -39,6 +41,8 @@ const barEl = ref(null)
 let mapChart = null
 let barChart = null
 let mapRegistered = false
+let mapLoading = false
+const mapLoadingState = ref(false)
 let offTheme = null
 
 const points = computed(() => aggregateWinners(props.draws))
@@ -55,13 +59,26 @@ function tooltipHtml(p) {
   return html
 }
 
-function renderMap() {
+async function renderMap() {
   if (!mapEl.value || !hasWinnerData.value) return
   const t = chartTheme()
   if (!mapChart) mapChart = echarts.init(mapEl.value)
   if (!mapRegistered) {
-    echarts.registerMap('china', chinaJson)
-    mapRegistered = true
+    // 首次渲染地图：懒加载 china.json 并 registerMap（mapLoading 防重入）
+    if (mapLoading) return
+    mapLoading = true
+    mapLoadingState.value = true
+    try {
+      const mod = await import('../assets/china.json')
+      echarts.registerMap('china', mod.default)
+      mapRegistered = true
+    } catch (e) {
+      console.warn('china.json 加载失败', e)
+      return
+    } finally {
+      mapLoading = false
+      mapLoadingState.value = false
+    }
   }
   const detail = points.value.reduce((m, p) => {
     m[p.province] = p
@@ -244,3 +261,13 @@ onBeforeUnmount(() => {
   }
 })
 </script>
+
+<style scoped>
+.map-loading {
+  margin-top: 8px;
+  padding: 24px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted, #90a4ae);
+}
+</style>

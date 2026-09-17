@@ -112,7 +112,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { echarts, chartTheme, tipStyle, onThemeChange } from '../utils/echarts-setup'
 import { getProvinceCoord } from '../utils/map-data'
 import { fmtDate, fmtMoney, pad2 } from '../utils/game-config'
-import chinaJson from '../assets/china.json'
+// china.json（~582KB）改为动态 import：首次渲染地图时才加载并 registerMap，不进主 chunk
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -129,6 +129,7 @@ let mapChart = null
 let barChart = null
 let trendChart = null
 let mapRegistered = false
+let mapLoading = false
 let offTheme = null
 
 /** F. 期数范围筛选（draws 最新在前） */
@@ -242,13 +243,24 @@ function tooltipHtml(p) {
   return html
 }
 
-function renderMap() {
+async function renderMap() {
   if (!mapEl.value || !hasData.value) return
   const t = chartTheme()
   if (!mapChart) mapChart = echarts.init(mapEl.value)
   if (!mapRegistered) {
-    echarts.registerMap('china', chinaJson)
-    mapRegistered = true
+    // 首次渲染地图：懒加载 china.json 并 registerMap（mapLoading 防重入）
+    if (mapLoading) return
+    mapLoading = true
+    try {
+      const mod = await import('../assets/china.json')
+      echarts.registerMap('china', mod.default)
+      mapRegistered = true
+    } catch (e) {
+      console.warn('china.json 加载失败', e)
+      return
+    } finally {
+      mapLoading = false
+    }
   }
   const detail = provStats.value.reduce((m, p) => {
     m[p.province] = p

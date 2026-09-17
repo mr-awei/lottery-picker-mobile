@@ -1,5 +1,6 @@
-// 中国省级坐标：优先从内置 china.json 的 centroid 提取，缺失时回退到省会坐标
-import chinaJson from '../assets/china.json'
+// 中国省级坐标：优先从 china-centroids.json（从 china.json 预提取的 centroid，仅 ~1.2KB）读取，
+// 缺失时回退到省会坐标。582KB 的 china.json 本身仅在地图 registerMap 时由组件动态 import 加载。
+import centroids from '../assets/china-centroids.json'
 
 const CAPITAL_COORDS = {
   北京: [116.405285, 39.904989],
@@ -44,10 +45,9 @@ function buildCentroidMap() {
   if (centroidMap) return centroidMap
   centroidMap = {}
   try {
-    ;(chinaJson.features || []).forEach((f) => {
-      const name = f.properties && f.properties.name
-      const c = f.properties && f.properties.centroid
-      if (name && Array.isArray(c) && c.length >= 2) centroidMap[name] = [c[0], c[1]]
+    Object.keys(centroids || {}).forEach((name) => {
+      const c = centroids[name]
+      if (Array.isArray(c) && c.length >= 2) centroidMap[name] = [c[0], c[1]]
     })
   } catch (e) {
     centroidMap = {}

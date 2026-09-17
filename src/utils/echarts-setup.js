@@ -1,6 +1,49 @@
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import {
+  LineChart,
+  BarChart,
+  PieChart,
+  ScatterChart,
+  EffectScatterChart,
+  MapChart
+} from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  VisualMapComponent,
+  TitleComponent,
+  DatasetComponent,
+  GeoComponent,
+  DataZoomComponent,
+  MarkLineComponent
+} from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 
-// ECharts 全量引入，桌面应用场景包体可接受，避免按需注册遗漏
+// ECharts 按需引入：只注册项目实际用到的图表与组件，
+// 替代原先 `import * as echarts from 'echarts'` 全量引入（主包显著瘦身）。
+// 图表：折线 / 柱状 / 饼图 / 散点 / 涟漪散点 / 地图
+// 组件：直角坐标系(grid/xAxis/yAxis) / 提示框 / 图例 / 视觉映射 / 标题 / 数据集 /
+//       地理坐标系(geo) / 缩放(dataZoom) / 标线(markLine)
+echarts.use([
+  LineChart,
+  BarChart,
+  PieChart,
+  ScatterChart,
+  EffectScatterChart,
+  MapChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  VisualMapComponent,
+  TitleComponent,
+  DatasetComponent,
+  GeoComponent,
+  DataZoomComponent,
+  MarkLineComponent,
+  CanvasRenderer
+])
+
 export { echarts }
 
 /** 根据当前主题返回图表配色（深色/浅色自适应，随 html.light 类切换） */

@@ -76,8 +76,10 @@
 
     <div class="set-card">
       <div class="set-group-title">更新公告</div>
-      <div class="changelog-list">
-        <div v-for="ver in CHANGELOG" :key="ver.version" class="changelog-item">
+      <div v-if="changelogLoading" class="changelog-list dim">更新公告加载中…</div>
+      <div v-else-if="changelogError" class="changelog-list changelog-err">{{ changelogError }}</div>
+      <div v-else class="changelog-list">
+        <div v-for="ver in changelog" :key="ver.version" class="changelog-item">
           <div class="changelog-head">
             <span class="changelog-version">v{{ ver.version }}</span>
             <span class="changelog-date dim">{{ ver.date }} · {{ ver.title }}</span>
@@ -150,7 +152,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { GAME_CONFIG } from '../utils/game-config'
 import { theme, applyTheme } from '../utils/ui-state'
-import { APP_VERSION, CHANGELOG } from '../utils/version'
+import { APP_VERSION } from '../utils/version'
 import { isAccelEnabled, setAccelEnabled, getBackendLabel } from '../utils/gpu-accel'
 
 const props = defineProps({
@@ -287,7 +289,30 @@ async function refreshAccelBackend() {
       : '本设备暂不支持硬件/多线程加速，开启亦无效')
 }
 
-onMounted(refreshAccelBackend)
+// 更新公告：CHANGELOG 已外置为 public/changelog.json（~38KB），进入设置页时 fetch 懒加载，不进主 bundle
+const changelog = ref([])
+const changelogLoading = ref(true)
+const changelogError = ref('')
+
+async function loadChangelog() {
+  changelogLoading.value = true
+  changelogError.value = ''
+  try {
+    const res = await fetch('./changelog.json')
+    if (!res.ok) throw new Error('HTTP ' + res.status)
+    changelog.value = await res.json()
+  } catch (e) {
+    console.warn('changelog.json 加载失败', e)
+    changelogError.value = '更新公告加载失败，请检查网络后重试'
+  } finally {
+    changelogLoading.value = false
+  }
+}
+
+onMounted(() => {
+  refreshAccelBackend()
+  loadChangelog()
+})
 
 function onGpuAccelChange(val) {
   setAccelEnabled(val)
@@ -411,6 +436,11 @@ function onViolentAttemptsChange(val) {
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.changelog-err {
+  color: #ff8a80;
+  font-size: 12px;
 }
 
 .changelog-item {
