@@ -158,6 +158,7 @@ import { pad2 } from '../utils/game-config'
 import { calcPlay, calcDirectPlay, scoreTicketPlay, expandDirectTicket, scoreDigits, computeDirectStats, scoreItemsFor } from '../utils/picker-engine'
 import { checkTicketHistory } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
+import { get, set, STORE_PICKS } from '../utils/db'
 
 const props = defineProps({
   picker: { type: Object, required: true },
@@ -273,8 +274,8 @@ const freqTop = computed(() => {
   return arr.sort((a, b) => b.cnt - a.cnt).slice(0, 12)
 })
 
-/** 将当前 AI 选号结果保存到自选号（与 MyPicks 共用 localStorage 数据，含评分与自动对奖） */
-function saveToPicks() {
+/** 将当前 AI 选号结果保存到自选号（与 MyPicks 共用 IndexedDB picks 数据，含评分与自动对奖） */
+async function saveToPicks() {
   if (saving.value) return // 冷却挡双击
   if (!result.value) {
     ElMessage.warning('暂未生成号码，请等待 AI 一直选 / 暴力模式结束')
@@ -318,14 +319,14 @@ function saveToPicks() {
   }
   try {
     const key = 'lottery-picker-mypicks-' + props.cfg.key
-    const raw = localStorage.getItem(key)
-    const arr = raw ? JSON.parse(raw) : []
+    const raw = await get(STORE_PICKS, key)
+    const arr = Array.isArray(raw) ? raw : []
     if (isRecentDuplicate(arr, ticket)) {
       ElMessage.info('已保存过相同号码，跳过重复保存')
       return
     }
     arr.unshift(pick)
-    localStorage.setItem(key, JSON.stringify(arr))
+    await set(STORE_PICKS, key, arr)
     savedTip.value = `已保存 ${calc.combos} 注 · ¥${calc.amount}，可在「自选号」页查看`
     ElMessage.success('已保存到自选号')
     window.dispatchEvent(new CustomEvent('lp-picks-updated', { detail: { key: props.cfg.key }}))

@@ -149,6 +149,7 @@ import { pad2 } from '../utils/game-config'
 import { expandTicket, scoreTicketPlay, computeDirectStats, computeStats, scoreDigits } from '../utils/picker-engine'
 import { checkTicketHistory, checkTicketHistoryMulti } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
+import { get, set, STORE_PICKS } from '../utils/db'
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -330,7 +331,7 @@ function exportCsv() {
   ElMessage.success('CSV 已导出')
 }
 
-function saveToPicks() {
+async function saveToPicks() {
   if (saving.value) return // 冷却挡双击
   if (!saveList.value.length) return
   saving.value = true
@@ -338,7 +339,8 @@ function saveToPicks() {
   const STORE_KEY = 'lottery-picker-mypicks-' + props.cfg.key
   let picks = []
   try {
-    picks = JSON.parse(localStorage.getItem(STORE_KEY) || '[]')
+    const raw = await get(STORE_PICKS, STORE_KEY)
+    picks = Array.isArray(raw) ? raw : []
   } catch (e) {
     picks = []
   }
@@ -371,7 +373,7 @@ function saveToPicks() {
   }
   picks.unshift(pick)
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify(picks))
+    await set(STORE_PICKS, STORE_KEY, picks)
   } catch (e) {
     console.error('拆票保存失败', e)
     ElMessage.error('保存失败：本地存储不可用')

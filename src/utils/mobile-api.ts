@@ -2,12 +2,13 @@
  * 移动端数据层：替代桌面端 Electron IPC（window.lotteryAPI）
  * - 请求：Capacitor Http 原生网络栈（绕过 WebView CORS），浏览器开发模式回退 fetch
  * - 兜底：v1.9.4 起，远程失败/被 CORS 拦截时自动回退 dist 内置的 8 彩种 JSON 快照
- * - 缓存：localStorage（key: lp-data-{game}），24 小时新鲜度，至少 MAX_DRAWS 期
+ * - 缓存：IndexedDB（store=draws，key: lp-data-{game}），24 小时新鲜度，至少 MAX_DRAWS 期（v1.9.7 起由 localStorage 迁移）
  * - 接口签名与桌面 preload 一致：get / refresh / status
  * - 彩种：双色球 / 大乐透 / 七乐彩 / 快乐8 / 福彩3D / 排列3 / 排列5 / 7星彩（对齐桌面端 data-fetcher）
  */
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import type { ApiDataResult, Draw, DrawWinner } from './types'
+import { get, set, checkQuota, STORE_DRAWS } from './db'
 
 const UA =
   'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
@@ -388,7 +389,7 @@ const FETCHERS: Record<string, (count?: number) => Promise<Draw[]>> = {
   qxc: fetchQXC
 }
 
-/** 本地缓存读写（localStorage） */
+/** 本地缓存读写（IndexedDB，store=draws；key 沿用原 localStorage 的 lp-data-{game}） */
 function cacheKey(game: string): string {
   return CACHE_PREFIX + game
 }
@@ -401,20 +402,23 @@ interface CacheShape {
   error?: string
 }
 
-function readCache(game: string): CacheShape | null {
+async function readCache(game: string): Promise<CacheShape | null> {
   try {
-    const raw = localStorage.getItem(cacheKey(game))
-    return raw ? (JSON.parse(raw) as CacheShape) : null
+    const v = await get<CacheShape>(STORE_DRAWS, cacheKey(game))
+    return v ?? null
   } catch {
     return null
   }
 }
 
-function writeCache(game: string, data: CacheShape): void {
+async function writeCache(game: string, data: CacheShape): Promise<void> {
   try {
-    localStorage.setItem(cacheKey(game), JSON.stringify(data))
-  } catch {
-    /* 存储满/不可用时忽略 */
+    await set(STORE_DRAWS, cacheKey(game), data)
+    // 写入成功后顺手探测配额（不足内部 console.warn）
+    checkQuota()
+  } catch (e) {
+    /* 存储满/不可用时忽略，不影响本次数据返回 */
+    console.warn('[mobile-api] 开奖缓存写入 IndexedDB 失败', e)
   }
 }
 
@@ -426,7 +430,7 @@ function isFresh(cache: CacheShape | null): boolean {
 }
 
 async function ensureData(game: string, force: boolean): Promise<ApiDataResult> {
-  const cache = readCache(game)
+  const cache = await readCache(game)
   if (!force && isFresh(cache)) {
     return { ok: true, source: 'cache', ...(cache as ApiDataResult) }
   }
@@ -438,7 +442,7 @@ async function ensureData(game: string, force: boolean): Promise<ApiDataResult> 
     const draws = await fn()
     const dataSource = _lastReqFromSnapshot ? 'snapshot' : 'fetch'
     const data: CacheShape = { game, updatedAt: new Date().toISOString(), source: dataSource, draws }
-    writeCache(game, data)
+    await writeCache(game, data)
     return { ok: true, source: dataSource, ...(data as ApiDataResult) }
   } catch (e) {
     if (cache && Array.isArray(cache.draws) && cache.draws.length > 0) {
@@ -464,8 +468,8 @@ export const lotteryApi = {
       return { ok: false, error: (err as Error).message }
     }
   },
-  status(game: string): { ok: boolean; updatedAt: string | null; count: number; missingWinners: number } {
-    const cache = readCache(game)
+  async status(game: string): Promise<{ ok: boolean; updatedAt: string | null; count: number; missingWinners: number }> {
+    const cache = await readCache(game)
     if (!cache || !Array.isArray(cache.draws)) {
       return { ok: true, updatedAt: null, count: 0, missingWinners: 0 }
     }
@@ -489,7 +493,7 @@ export const lotteryApi = {
     if (!game || !issue) return null
     const want = String(issue).trim()
     // 1. cache 命中
-    const cache = readCache(game)
+    const cache = await readCache(game)
     if (cache && Array.isArray(cache.draws)) {
       const hit = cache.draws.find((d) => String(d.issue || '').trim() === want)
       if (hit) return { ok: true, source: 'cache', draw: hit }

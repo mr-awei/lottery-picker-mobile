@@ -159,6 +159,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, onActivated } from 'v
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { pad2, fmtDate } from '../utils/game-config'
 import { checkTicketHistory, checkTicketHistoryMulti, isBigWin, bigWinFlow, smallWinNote, fmtBonus } from '../utils/prize-check'
+import { get, set, STORE_PICKS } from '../utils/db'
 
 const props = defineProps({
   cfg: { type: Object, required: true },
@@ -182,10 +183,10 @@ function zxLabel(zx) {
   return '直选'
 }
 
-function load() {
+async function load() {
   try {
-    const raw = localStorage.getItem(STORE_KEY())
-    const arr = raw ? JSON.parse(raw) : []
+    const raw = await get(STORE_PICKS, STORE_KEY())
+    const arr = Array.isArray(raw) ? raw : []
     picks.value = arr.map((p) => {
       if (!p.ticket) {
         return {
@@ -211,9 +212,9 @@ function load() {
   }
 }
 
-function persist() {
+async function persist() {
   try {
-    localStorage.setItem(STORE_KEY(), JSON.stringify(picks.value))
+    await set(STORE_PICKS, STORE_KEY(), picks.value)
   } catch (e) {
     console.error('保存自选号失败', e)
   }
@@ -338,17 +339,17 @@ function clearAll() {
     .catch(() => {})
 }
 
-function onPicksUpdated(e) {
+async function onPicksUpdated(e) {
   if (e && e.detail && e.detail.key === props.cfg.key) {
-    load()
+    await load()
     // 修复（1.9.1）：之前只 load 不 recheck → 新保存的票没有 prize 状态显示"等待核对…"，
     // 用户看不到中奖核对反馈，误以为"保存失败 → 要清后台重启"才看到。
     if (props.draws && props.draws.length) recheckAll()
   }
 }
 
-onMounted(() => {
-  load()
+onMounted(async () => {
+  await load()
   loadShown()
   if (props.draws && props.draws.length) recheckAll()
   window.addEventListener('lp-picks-updated', onPicksUpdated)
@@ -358,8 +359,8 @@ onMounted(() => {
 // 切 tab / 切彩种都不重 mount；如果用户的「保存事件」在 SavedPicksList 首次 mount 之前派发（例如
 // App 启动过程中或 FileCheck 首次渲染尚未触发 onMounted），window 上的 listener 还没注册 → 事件丢失。
 // 兜底：每次激活（onActivated）都强制重 load + recheck，覆盖「事件丢失」和「跨组件后续刷新」两种场景。
-onActivated(() => {
-  load()
+onActivated(async () => {
+  await load()
   loadShown()
   if (props.draws && props.draws.length) recheckAll()
 })

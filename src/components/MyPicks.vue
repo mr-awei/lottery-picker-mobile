@@ -193,6 +193,7 @@ import { pad2 } from '../utils/game-config'
 import { scoreTicketPlay, calcPlay, createPickerEngine, calcDirectPlay, computeDirectStats, expandDirectTicket, scoreDigits, scoreItemsFor } from '../utils/picker-engine'
 import { checkTicketHistory, checkTicketHistoryMulti } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
+import { get, set, STORE_PICKS } from '../utils/db'
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -615,12 +616,10 @@ function savePick() {
     totalBonus: multi.totalBonus
   }
   picks.value = [pick, ...picks.value]
-  // 写入 localStorage + 派发 lp-picks-updated 事件，让 SavedPicksList 立即刷新
-  try {
-    localStorage.setItem(STORE_KEY(), JSON.stringify(picks.value))
-  } catch (e) {
+  // 写入 IndexedDB + 派发 lp-picks-updated 事件，让 SavedPicksList 立即刷新
+  set(STORE_PICKS, STORE_KEY(), picks.value).catch((e) => {
     console.error('保存自选号失败', e)
-  }
+  })
   window.dispatchEvent(new CustomEvent('lp-picks-updated', { detail: { key: props.cfg.key }}))
   clearSel()
   draft.value = []
@@ -632,11 +631,11 @@ function jumpToCheck() {
   window.dispatchEvent(new CustomEvent('lp-switch-tab', { detail: { group: 'check', tab: 'filecheck' }}))
 }
 
-/** 从 localStorage 读取保存的票（用于摘要卡片显示） */
-function refreshFromStorage() {
+/** 从 IndexedDB 读取保存的票（用于摘要卡片显示） */
+async function refreshFromStorage() {
   try {
-    const raw = localStorage.getItem(STORE_KEY())
-    picks.value = raw ? JSON.parse(raw) : []
+    const arr = await get(STORE_PICKS, STORE_KEY())
+    picks.value = Array.isArray(arr) ? arr : []
   } catch (e) {
     picks.value = []
   }
