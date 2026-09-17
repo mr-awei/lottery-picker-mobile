@@ -16,6 +16,7 @@ function combos(n: number, k: number): number[][] {
   if (k === 0) return [[]]
   const out: number[][] = []
   const idx = Array.from({ length: k }, (_, i) => i)
+  // eslint-disable-next-line no-constant-condition
   while (true) {
     out.push([...idx])
     let p = k - 1
@@ -54,7 +55,7 @@ function shuffle<T>(arr: T[]): T[] {
  * @param subsets 全部 t-子集
  * @param guarantee t
  */
-function greedyOnce(lines: number[][], subsets: number[][], guarantee: number): number[][] {
+function greedyOnce(lines: number[][], subsets: number[][]): number[][] {
   const uncovered = new Set<number>(subsets.map((_, i) => i))
   const result: number[][] = []
   const lineOrder = lines
@@ -97,7 +98,7 @@ function greedyCovering(poolSize: number, pickSize: number, guarantee: number, r
 
   for (let r = 0; r < restarts; r++) {
     const lines = r === 0 ? allLines : shuffle(allLines)
-    const result = greedyOnce(lines, allSubsets, guarantee)
+    const result = greedyOnce(lines, allSubsets)
     if (!best || result.length < best.length) {
       best = result
       if (result.length <= Math.ceil(allSubsets.length / combos(pickSize, guarantee).length)) break
