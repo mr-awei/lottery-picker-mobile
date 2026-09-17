@@ -26,6 +26,7 @@
             <el-radio-button :value="50">近50期</el-radio-button>
             <el-radio-button :value="100">近100期</el-radio-button>
           </el-radio-group>
+          <span class="dim hint">实际回测 {{ actualPeriods }} 期（预留5期训练）</span>
         </div>
         <div class="ctrl-row">
           <span class="ctrl-label">每期注数</span>
@@ -162,6 +163,7 @@ const methodLabels = METHOD_LABELS
 const selectedMethods = ref(['zone', 'odd', 'sum', 'hot', 'size'])
 const periods = ref(50)
 const perTicket = ref(3)
+const actualPeriods = computed(() => Math.max(1, Math.min(periods.value, (props.draws?.length || 0) - 5)))
 const running = ref(false)
 const progress = ref(0)
 const result = ref(null)

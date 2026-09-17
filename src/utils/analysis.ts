@@ -153,7 +153,7 @@ export interface BacktestOptions {
 
 const UNIT_PRICE = 2
 /** 每期训练数据至少需要这么多期，否则统计无意义 */
-const MIN_TRAIN = 10
+const MIN_TRAIN = 5
 
 /**
  * 策略回测核心引擎。
