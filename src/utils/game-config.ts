@@ -2,7 +2,9 @@
 // playMode 说明：
 //   combo  乐透型（红/蓝双区或单区球池），如双色球/大乐透/七乐彩/快乐8
 //   direct 直位数字型（每位 0-9 按位选择），如福彩3D/排列3/排列5/7星彩
-export const GAME_CONFIG = {
+import type { GameConfig } from './types'
+
+export const GAME_CONFIG: Record<string, GameConfig> = {
   ssq: {
     key: 'ssq',
     name: '双色球',
@@ -167,36 +169,36 @@ export const GAME_CONFIG = {
   }
 }
 
-export const GAME_KEYS = Object.keys(GAME_CONFIG)
+export const GAME_KEYS: string[] = Object.keys(GAME_CONFIG)
 
 /** 彩种分组（用于头部切换按钮分组显示） */
-export const GAME_GROUPS = [
+export const GAME_GROUPS: Array<{ name: string; items: string[] }> = [
   { name: '福彩', items: ['ssq', 'qlc', 'kl8', 'fc3d'] },
   { name: '体彩', items: ['dlt', 'pl3', 'pl5', 'qxc'] }
 ]
 
-export function fmtMoney(n) {
+export function fmtMoney(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return '—'
   if (n >= 100000000) return (n / 100000000).toFixed(2) + ' 亿'
   if (n >= 10000) return (n / 10000).toFixed(1) + ' 万'
   return String(n)
 }
 
-export function fmtDate(d) {
+export function fmtDate(d: string | number | null | undefined): string {
   if (!d) return '—'
   return String(d).slice(0, 10)
 }
 
 /** 时间戳格式化为 年-月-日 时:分:秒 */
-export function fmtStamp(ts) {
+export function fmtStamp(ts: number | string | null | undefined): string {
   if (!ts) return '—'
   const n = Number(ts)
   if (isNaN(n)) return '—'
   const t = new Date(n)
-  const p = (x) => String(x).padStart(2, '0')
+  const p = (x: number) => String(x).padStart(2, '0')
   return `${t.getFullYear()}-${p(t.getMonth() + 1)}-${p(t.getDate())} ${p(t.getHours())}:${p(t.getMinutes())}:${p(t.getSeconds())}`
 }
 
-export function pad2(n) {
+export function pad2(n: number | string): string {
   return String(n).padStart(2, '0')
 }

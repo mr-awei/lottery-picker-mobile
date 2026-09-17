@@ -36,7 +36,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      include: ['src/utils/picker-engine.js', 'src/utils/prize-check.js']
+      include: ['src/utils/picker-engine.ts', 'src/utils/prize-check.ts']
     }
   }
 })

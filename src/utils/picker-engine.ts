@@ -1,19 +1,20 @@
 // 本地统计选号引擎：冷热号加权 + 区间均衡 + 奇偶均衡 + 和值区间 + 连号限量
 // 输入近 100 期开奖数据，输出 n 注推荐号码及各维度得分
 // 声明：彩票为独立随机事件，本引擎仅基于历史统计生成参考组合，不提高中奖概率
+import type { BlueScore, DirectStats, DigitScore, Draw, GameConfig, RedScore, ScoreStats, Ticket } from './types'
 
-function randInt(min, max) {
+function randInt(min: number, max: number): number {
   return min + Math.floor(Math.random() * (max - min + 1))
 }
 
-function range(n) {
-  const a = new Array(n)
+function range(n: number): number[] {
+  const a = new Array<number>(n)
   for (let i = 0; i < n; i++) a[i] = i + 1
   return a
 }
 
 /** Fisher-Yates 无偏采样 k 个（替代 splice 有偏洗牌，O(n)） */
-function randPick(arr, k) {
+function randPick(arr: number[], k: number): number[] {
   const a = [...arr]
   const n = Math.min(k, a.length)
   for (let i = 0; i < n; i++) {
@@ -29,11 +30,11 @@ function randPick(arr, k) {
  * 加权池无重复采样：池中含重复权重元素（热号出现多次），
  * 洗牌过程中跳过已取号码，一次遍历取满 k 个不同号码，避免无效重试。
  */
-function randPickUnique(pool, k) {
+function randPickUnique(pool: number[], k: number): number[] {
   const a = [...pool]
   const n = a.length
-  const picked = []
-  const seen = new Set()
+  const picked: number[] = []
+  const seen = new Set<number>()
   for (let i = 0; i < n && picked.length < k; i++) {
     const j = randInt(i, n - 1)
     const t = a[i]
@@ -48,10 +49,10 @@ function randPickUnique(pool, k) {
 }
 
 /** 用户锁定号码规范化：过滤非法值、去重、升序。max 为号码上限 */
-export function normLocked(max, locked) {
+export function normLocked(max: number, locked: Array<number | string> | null | undefined): number[] {
   if (!Array.isArray(locked) || !locked.length) return []
-  const seen = new Set()
-  const out = []
+  const seen = new Set<number>()
+  const out: number[] = []
   for (const n of locked) {
     const v = Number(n)
     if (!Number.isInteger(v) || v < 1 || v > max || seen.has(v)) continue
@@ -62,7 +63,7 @@ export function normLocked(max, locked) {
 }
 
 /** 组合数 C(n, k) */
-export function comb(n, k) {
+export function comb(n: number, k: number): number {
   if (k < 0 || k > n) return 0
   k = Math.min(k, n - k)
   let r = 1
@@ -71,12 +72,14 @@ export function comb(n, k) {
 }
 
 /** 统计近 N 期冷热/遗漏（独立导出供自选号评分复用） */
-export function computeStats(cfg, draws) {
-  const redFreq = new Array(cfg.redMax + 1).fill(0)
-  const redMiss = new Array(cfg.redMax + 1).fill(-1)
-  const blueFreq = new Array(cfg.blueMax + 1).fill(0)
-  const blueMiss = new Array(cfg.blueMax + 1).fill(-1)
-  const tailFreq = new Array(10).fill(0)
+export function computeStats(cfg: GameConfig, draws: Draw[]): ScoreStats {
+  const redMax = cfg.redMax ?? 0
+  const blueMax = cfg.blueMax ?? 0
+  const redFreq = new Array<number>(redMax + 1).fill(0)
+  const redMiss = new Array<number>(redMax + 1).fill(-1)
+  const blueFreq = new Array<number>(blueMax + 1).fill(0)
+  const blueMiss = new Array<number>(blueMax + 1).fill(-1)
+  const tailFreq = new Array<number>(10).fill(0)
   const total = draws.length
 
   for (let idx = 0; idx < total; idx++) {
@@ -84,19 +87,19 @@ export function computeStats(cfg, draws) {
     const red = d.red || []
     for (let i = 0; i < red.length; i++) {
       const n = red[i]
-      if (n >= 1 && n <= cfg.redMax) {
+      if (n >= 1 && n <= redMax) {
         redFreq[n]++
         redMiss[n] = idx
         tailFreq[n % 10]++
       }
     }
     const b1 = d.blue
-    if (b1 >= 1 && b1 <= cfg.blueMax) {
+    if (b1 != null && b1 >= 1 && b1 <= blueMax) {
       blueFreq[b1]++
       blueMiss[b1] = idx
     }
     const b2 = d.blue2
-    if (b2 != null && b2 >= 1 && b2 <= cfg.blueMax) {
+    if (b2 != null && b2 >= 1 && b2 <= blueMax) {
       blueFreq[b2]++
       blueMiss[b2] = idx
     }
@@ -105,45 +108,45 @@ export function computeStats(cfg, draws) {
   // 热号 = 近 10 期内出现 ≥3 次的号码（1.8.3 修复：原来误用全局 redFreq[n]>=3，
   // 近 10 期口径应统计 recent 内的频率）
   const recent = draws.slice(0, Math.min(10, total))
-  const recentFreq = new Array(cfg.redMax + 1).fill(0)
+  const recentFreq = new Array<number>(redMax + 1).fill(0)
   for (const d of recent) {
     const red = d.red || []
     for (let i = 0; i < red.length; i++) {
       const n = red[i]
-      if (n >= 1 && n <= cfg.redMax) recentFreq[n]++
+      if (n >= 1 && n <= redMax) recentFreq[n]++
     }
   }
-  const hotSet = new Set()
-  for (let n = 1; n <= cfg.redMax; n++) {
+  const hotSet = new Set<number>()
+  for (let n = 1; n <= redMax; n++) {
     if (recentFreq[n] >= 3) hotSet.add(n)
   }
   const hot = [...hotSet]
 
-  const cold = []
-  for (let n = 1; n <= cfg.redMax; n++) {
+  const cold: number[] = []
+  for (let n = 1; n <= redMax; n++) {
     const miss = redMiss[n] === -1 ? total : total - redMiss[n]
     if (miss >= 10) cold.push(n)
   }
 
-  const hotBlue = new Set()
+  const hotBlue = new Set<number>()
   for (const d of recent) {
     if (d.blue != null) hotBlue.add(d.blue)
     if (d.blue2 != null) hotBlue.add(d.blue2)
   }
 
-  const first = draws[0] || {}
-  const lastRed = (first.red || []).filter((n) => n >= 1 && n <= cfg.redMax)
-  const lastBlue = []
-  if (first.blue != null && first.blue >= 1 && first.blue <= cfg.blueMax) lastBlue.push(first.blue)
-  if (first.blue2 != null && first.blue2 >= 1 && first.blue2 <= cfg.blueMax) lastBlue.push(first.blue2)
+  const first = draws[0] || ({} as Draw)
+  const lastRed = (first.red || []).filter((n) => n >= 1 && n <= redMax)
+  const lastBlue: number[] = []
+  if (first.blue != null && first.blue >= 1 && first.blue <= blueMax) lastBlue.push(first.blue)
+  if (first.blue2 != null && first.blue2 >= 1 && first.blue2 <= blueMax) lastBlue.push(first.blue2)
 
   // 每个号码的遗漏期数（0 = 上期刚出）
-  const omitVal = []
-  for (let n = 1; n <= cfg.redMax; n++) {
+  const omitVal: number[] = []
+  for (let n = 1; n <= redMax; n++) {
     omitVal[n] = redMiss[n] === -1 ? total : total - redMiss[n]
   }
-  const blueOmit = []
-  for (let b = 1; b <= cfg.blueMax; b++) {
+  const blueOmit: number[] = []
+  for (let b = 1; b <= blueMax; b++) {
     blueOmit[b] = blueMiss[b] === -1 ? total : total - blueMiss[b]
   }
 
@@ -160,15 +163,15 @@ export function computeStats(cfg, draws) {
 const PRIMES = new Set([2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31])
 
 /** 红球结构评分（独立导出） */
-export function scoreRed(cfg, red, s) {
+export function scoreRed(cfg: GameConfig, red: number[], s: ScoreStats): RedScore {
   const zones = [0, 0, 0]
   red.forEach((n) => {
-    const z = n <= cfg.zoneEdges[0] ? 0 : n <= cfg.zoneEdges[1] ? 1 : 2
+    const z = n <= (cfg.zoneEdges?.[0] ?? 0) ? 0 : n <= (cfg.zoneEdges?.[1] ?? 0) ? 1 : 2
     zones[z]++
   })
   // 快乐8 选 N（1~10）：zoneTarget 固定 [3,4,3] 是"选十"的，切玩法时按实际号数比例动态分配，
   // 否则选1~选9 区间评分被压到接近 0（1.8.3 修复）
-  let zoneTarget = cfg.zoneTarget
+  let zoneTarget = cfg.zoneTarget || []
   if (cfg.kl8 && Array.isArray(zoneTarget)) {
     const n = red.length
     const a = Math.round(n * 3 / 10)
@@ -182,7 +185,7 @@ export function scoreRed(cfg, red, s) {
   zoneScore = (zoneScore / zoneTarget.length) * 100
 
   const odds = red.filter((n) => n % 2 === 1).length
-  const targetOdd = Math.round(cfg.redCount / 2)
+  const targetOdd = Math.round((cfg.redCount ?? 0) / 2)
   const oddScore = Math.max(0, 100 - Math.abs(odds - targetOdd) * 25)
 
   const sum = red.reduce((a, b) => a + b, 0)
@@ -199,9 +202,9 @@ export function scoreRed(cfg, red, s) {
   const hotScore = Math.min(100, hotIn * 25 + coldIn * 10)
 
   // 大小比：大号(>sizeSplit)个数接近目标
-  const sizeSplit = cfg.sizeSplit || Math.floor(cfg.redMax / 2)
+  const sizeSplit = cfg.sizeSplit || Math.floor((cfg.redMax ?? 0) / 2)
   const bigs = red.filter((n) => n > sizeSplit).length
-  const targetBig = Math.round(cfg.redCount / 2)
+  const targetBig = Math.round((cfg.redCount ?? 0) / 2)
   const sizeScore = Math.max(0, 100 - Math.abs(bigs - targetBig) * 30)
 
   // 质合比：质数个数接近 2
@@ -211,7 +214,7 @@ export function scoreRed(cfg, red, s) {
   // 012路均衡：按 n%3 分三路，偏离均分惩罚
   const routes = [0, 0, 0]
   red.forEach((n) => routes[n % 3]++)
-  const perRoute = cfg.redCount / 3
+  const perRoute = (cfg.redCount ?? 0) / 3
   const routeScore = Math.max(0, 100 - routes.reduce((a, c) => a + Math.abs(c - perRoute), 0) * 22)
 
   // 跨度：max-min 落在常见区间
@@ -221,7 +224,7 @@ export function scoreRed(cfg, red, s) {
   const spanScore = span >= spanMin && span <= spanMax ? 100 : Math.max(0, 100 - Math.min(60, Math.abs(span - (spanMin + spanMax) / 2) * 6))
 
   // 尾数分散：重复尾数惩罚
-  const tails = new Array(10).fill(0)
+  const tails = new Array<number>(10).fill(0)
   red.forEach((n) => tails[n % 10]++)
   const tailPairs = tails.reduce((a, c) => a + Math.max(0, c - 1), 0)
   const tailScore = Math.max(0, 100 - tailPairs * 22)
@@ -236,13 +239,13 @@ export function scoreRed(cfg, red, s) {
   const omitScore = omitOk >= 2 ? 100 : omitOk === 1 ? 75 : 55
 
   // AC值（算术复杂度）：独特两两差值数 - (k-1)，适中区间加分
-  const diffSet = new Set()
+  const diffSet = new Set<number>()
   for (let i = 0; i < sorted.length; i++) for (let j = i + 1; j < sorted.length; j++) diffSet.add(sorted[j] - sorted[i])
   const ac = diffSet.size - (sorted.length - 1)
   const acScore = ac >= 5 && ac <= 10 ? 100 : Math.max(0, 100 - Math.abs(ac - 7) * 12)
 
   // 邻号参照：与上期号码 ±1 的邻号命中 1~2 个最自然（老彩民"补位定胆"）
-  const neighborSet = new Set()
+  const neighborSet = new Set<number>()
   if (s.lastRed && s.lastRed.length) {
     s.lastRed.forEach((n) => { neighborSet.add(n - 1); neighborSet.add(n + 1) })
   }
@@ -250,18 +253,18 @@ export function scoreRed(cfg, red, s) {
   const neighborScore = neighborIn === 2 ? 100 : neighborIn === 1 ? 90 : neighborIn === 0 ? 60 : Math.max(0, 100 - (neighborIn - 2) * 25)
 
   // 黄金分割：号码接近 redMax×0.382 / ×0.618 基点（动态适配双色球33/大乐透35）
-  const g1 = Math.round(cfg.redMax * 0.382)
-  const g2 = Math.round(cfg.redMax * 0.618)
+  const g1 = Math.round((cfg.redMax ?? 0) * 0.382)
+  const g2 = Math.round((cfg.redMax ?? 0) * 0.618)
   const goldenIn = red.filter((n) => Math.abs(n - g1) <= 2 || Math.abs(n - g2) <= 2).length
   const goldenScore = goldenIn >= 1 && goldenIn <= 2 ? 100 : goldenIn > 2 ? 80 : 60
 
   // 镜像对称：恒值对码（redMax+1-n）同出惩罚，避免全镜像畸形组合
-  const mirrorVal = cfg.redMax + 1
+  const mirrorVal = (cfg.redMax ?? 0) + 1
   const redSet = new Set(red)
   let mirrorPairs = 0
   red.forEach((n) => {
     const p = mirrorVal - n
-    if (p !== n && p >= 1 && p <= cfg.redMax && redSet.has(p)) mirrorPairs++
+    if (p !== n && p >= 1 && p <= (cfg.redMax ?? 0) && redSet.has(p)) mirrorPairs++
   })
   mirrorPairs = Math.floor(mirrorPairs / 2)
   const mirrorScore = mirrorPairs === 0 ? 100 : Math.max(0, 100 - mirrorPairs * 45)
@@ -281,7 +284,7 @@ export function scoreRed(cfg, red, s) {
   const fiboScore = fiboHits >= 2 ? 100 : fiboHits === 1 ? 85 : 65
 
   // 龙头凤尾：龙头偏小、凤尾偏大的常见区间
-  const headOk = sorted[0] <= (cfg.redMax <= 33 ? 9 : 11)
+  const headOk = sorted[0] <= ((cfg.redMax ?? 0) <= 33 ? 9 : 11)
   const tailOk = sorted[sorted.length - 1] >= 28
   const headTailScore = headOk && tailOk ? 100 : headOk || tailOk ? 80 : 55
 
@@ -310,14 +313,14 @@ export function scoreRed(cfg, red, s) {
 }
 
 /** 蓝球评分：热号 + 大小 + 012路 + 遗漏（无蓝球彩种返回 0 分） */
-export function scoreBlue(cfg, blue, s) {
+export function scoreBlue(cfg: GameConfig, blue: number[], s: ScoreStats): BlueScore {
   if (!blue || !blue.length) return { hotIn: 0, hotScore: 0, sizeScore: 0, routeScore: 0, omitScore: 0, total: 0 }
   const hotIn = blue.filter((b) => s.hotBlue.has(b)).length
   const hotScore = Math.min(100, 40 + hotIn * 30)
   // 大乐透双蓝：一大一小偏好
   let sizeScore = 100
   if (blue.length > 1) {
-    const split = cfg.blueSizeSplit || Math.floor(cfg.blueMax / 2)
+    const split = cfg.blueSizeSplit || Math.floor((cfg.blueMax ?? 0) / 2)
     const bigs = blue.filter((b) => b > split).length
     const target = Math.round(blue.length / 2)
     sizeScore = Math.max(0, 100 - Math.abs(bigs - target) * 35)
@@ -338,7 +341,13 @@ export function scoreBlue(cfg, blue, s) {
 }
 
 /** 对单注号码按与引擎相同规则评分。s 可选：外部已算好的 computeStats 结果，避免重复统计 */
-export function scoreTicket(cfg, draws, red, blue, s) {
+export function scoreTicket(
+  cfg: GameConfig,
+  draws: Draw[] | null | undefined,
+  red: number[],
+  blue: number[] | null | undefined,
+  s?: ScoreStats
+): Record<string, unknown> & { blueScore: BlueScore; stats: ScoreStats } {
   // 历史数据缺失时仍基于号码本身统计（区间/奇偶/和值/大小等不依赖历史），冷热/重号/遗漏等字段按空历史中性值处理
   const st = s || computeStats(cfg, draws || [])
   const rs = scoreRed(cfg, red, st)
@@ -347,7 +356,7 @@ export function scoreTicket(cfg, draws, red, blue, s) {
 }
 
 /** 玩法定义 */
-export const PLAY_TYPES = [
+export const PLAY_TYPES: Array<{ key: string; label: string; price: number }> = [
   { key: 'single', label: '单注', price: 2 },
   { key: 'multi', label: '多注', price: 2 },
   { key: 'duplex', label: '复式', price: 2 },
@@ -357,8 +366,9 @@ export const PLAY_TYPES = [
 export const UNIT_PRICE = 2
 
 /** 可选生成策略（方法）：覆盖经典冷热统计与老彩民经验型方法（21 种） */
-export const ALL_METHODS = ['zone', 'odd', 'sum', 'cons', 'hot', 'size', 'prime', 'route', 'span', 'tail', 'repeat', 'omit', 'ac', 'neighbor', 'golden', 'mirror', 'sumTail', 'mean', 'fibo', 'headTail', 'clamp']
-export const METHOD_LABELS = {
+export const ALL_METHODS = ['zone', 'odd', 'sum', 'cons', 'hot', 'size', 'prime', 'route', 'span', 'tail', 'repeat', 'omit', 'ac', 'neighbor', 'golden', 'mirror', 'sumTail', 'mean', 'fibo', 'headTail', 'clamp'] as const
+export type MethodKey = (typeof ALL_METHODS)[number]
+export const METHOD_LABELS: Record<string, string> = {
   zone: '区间均衡',
   odd: '奇偶均衡',
   sum: '和值区间',
@@ -383,22 +393,22 @@ export const METHOD_LABELS = {
 }
 
 /** 归一化策略：不传=全部策略；传空数组=真随机（不用任何策略） */
-export function normMethods(methods) {
-  if (methods === undefined || methods === null) return ALL_METHODS
+export function normMethods(methods: string[] | null | undefined): string[] {
+  if (methods === undefined || methods === null) return [...ALL_METHODS]
   if (!Array.isArray(methods) || !methods.length) return []
-  const set = new Set(methods.filter((x) => ALL_METHODS.includes(x)))
+  const set = new Set(methods.filter((x) => ALL_METHODS.includes(x as MethodKey)))
   return ALL_METHODS.filter((x) => set.has(x))
 }
 
 /** 按选中策略归一化权重计算总分（只选部分策略时用于择优）。sc 可选：外部已算好的 scoreRed 结果 */
-export function weightedScore(cfg, red, s, methods, sc) {
-  const W = { zone: 0.1, odd: 0.08, sum: 0.09, cons: 0.05, hot: 0.08, size: 0.08, prime: 0.04, route: 0.06, span: 0.04, tail: 0.04, repeat: 0.04, omit: 0.03, ac: 0.02, neighbor: 0.04, golden: 0.03, mirror: 0.02, sumTail: 0.03, mean: 0.04, fibo: 0.02, headTail: 0.04, clamp: 0.03 }
+export function weightedScore(cfg: GameConfig, red: number[], s: ScoreStats, methods: string[], sc?: RedScore): number {
+  const W: Record<string, number> = { zone: 0.1, odd: 0.08, sum: 0.09, cons: 0.05, hot: 0.08, size: 0.08, prime: 0.04, route: 0.06, span: 0.04, tail: 0.04, repeat: 0.04, omit: 0.03, ac: 0.02, neighbor: 0.04, golden: 0.03, mirror: 0.02, sumTail: 0.03, mean: 0.04, fibo: 0.02, headTail: 0.04, clamp: 0.03 }
   let wsum = 0
   methods.forEach((m) => { wsum += W[m] || 0 })
   if (!wsum) return 0
   const st = sc || scoreRed(cfg, red, s)
   let total = 0
-  methods.forEach((m) => { total += st[m + 'Score'] * ((W[m] || 0) / wsum) })
+  methods.forEach((m) => { total += (st as unknown as Record<string, number>)[m + 'Score'] * ((W[m] || 0) / wsum) })
   return Math.round(total)
 }
 
@@ -409,7 +419,7 @@ export function weightedScore(cfg, red, s, methods, sc) {
  *  danTuo: { danRed: [2], tuoRed: [6], blue: [2] }  （red 数组展开计算）
  *  大乐透追加（cfg.zhuijia && play.append）时每注 +1 元
  */
-export function calcPlay(cfg, play) {
+export function calcPlay(cfg: GameConfig, play: Ticket | null | undefined): { combos: number; amount: number; append: boolean; multiple: number } {
   // 直位数字型（福彩3D/排列3/排列5/7星彩）：定位复式/多注/单注
   if (cfg.playMode === 'direct') {
     return calcDirectPlay(cfg, play)
@@ -420,24 +430,24 @@ export function calcPlay(cfg, play) {
   else if (type === 'multi') combos = Math.max(1, play.n || (Array.isArray(play.tickets) ? play.tickets.length : 1))
   else if (type === 'duplex') {
     // 兼容两种入参：玩法配置（redCount/blueCount）或实际票（red/blue 数组）
-    const r = Array.isArray(play.red) ? play.red.length : (play.redCount || cfg.redCount + 1)
-    const b = Array.isArray(play.blue) ? play.blue.length : (play.blueCount || cfg.blueCount)
-    combos = comb(r, cfg.redCount) * comb(b, cfg.blueCount)
+    const r = Array.isArray(play.red) ? play.red.length : (play.redCount || (cfg.redCount ?? 0) + 1)
+    const b = Array.isArray(play.blue) ? play.blue.length : (play.blueCount ?? cfg.blueCount ?? 0)
+    combos = comb(r, cfg.redCount ?? 0) * comb(b, cfg.blueCount ?? 0)
   } else if (type === 'danTuo') {
     const dan = Array.isArray(play.danRed) ? play.danRed.length : 0
     const tuo = Array.isArray(play.tuoRed) ? play.tuoRed.length : 0
-    if (dan >= cfg.redCount || tuo <= 0) {
+    if (dan >= (cfg.redCount ?? 0) || tuo <= 0) {
       combos = 0
     } else {
-      const redCombos = comb(tuo, cfg.redCount - dan)
+      const redCombos = comb(tuo, (cfg.redCount ?? 0) - dan)
       // 后区胆拖（大乐透）：蓝球由 blueDan 固定 + 组合(blueTuo, blueCount - blueDan.length) 构成
       const blueDan = Array.isArray(play.blueDan) ? play.blueDan.length : 0
       const blueTuo = Array.isArray(play.blueTuo) ? play.blueTuo.length : 0
-      if (blueDan > 0 && blueTuo >= cfg.blueCount - blueDan && blueDan < cfg.blueCount) {
-        combos = redCombos * comb(blueTuo, cfg.blueCount - blueDan)
+      if (blueDan > 0 && blueTuo >= (cfg.blueCount ?? 0) - blueDan && blueDan < (cfg.blueCount ?? 0)) {
+        combos = redCombos * comb(blueTuo, (cfg.blueCount ?? 0) - blueDan)
       } else {
-        const b = Array.isArray(play.blue) ? play.blue.length : cfg.blueCount
-        combos = redCombos * comb(b, cfg.blueCount)
+        const b = Array.isArray(play.blue) ? play.blue.length : (cfg.blueCount ?? 0)
+        combos = redCombos * comb(b, cfg.blueCount ?? 0)
       }
     }
   }
@@ -448,11 +458,11 @@ export function calcPlay(cfg, play) {
 }
 
 /** 组合枚举（k<0 或 k>n 时安全返回空；k=0 返回一个空组合，用于无蓝球乐透型复式/胆拖） */
-function combosOf(arr, k) {
+function combosOf(arr: number[], k: number): number[][] {
   const n = arr.length
   if (k < 0 || k > n) return []
   if (k === 0) return [[]]
-  const out = []
+  const out: number[][] = []
   const idx = Array.from({ length: k }, (_, i) => i)
   // eslint-disable-next-line no-constant-condition -- 组合枚举，内部按边界 break
   while (true) {
@@ -477,10 +487,10 @@ function combosOf(arr, k) {
  *  3. 单行"红区 ... - 蓝区 ..."分段（parseLine 已支持）
  *  4. 纯号码行 "01 02 03 04 05 06 07"（parseLine 已支持）
  */
-export function extractTickets(text, cfg) {
+export function extractTickets(text: string | null | undefined, cfg: GameConfig): Array<{ red?: number[]; blue?: number[]; digits?: number[]; tail?: number | null }> {
   if (!text || !cfg) return []
-  const out = []
-  const seen = new Set()  // v1.9.7：按 red+blue 串去重，三策略共用
+  const out: Array<{ red?: number[]; blue?: number[]; digits?: number[]; tail?: number | null }> = []
+  const seen = new Set<string>()  // v1.9.7：按 red+blue 串去重，三策略共用
   if (cfg.playMode === 'direct') {
     // 直位彩种：每行 1 注（多位数字）
     const lines = String(text).split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -503,23 +513,24 @@ export function extractTickets(text, cfg) {
   //     现在 perLine 兜底抓回 "08 13 20 22 25 30+12"，合计 5 注。
 
   // 从 body 字符串里抽 red/blue，返回 {red, blue} 或 null
-  const parseBody = (body) => {
+  const parseBody = (body: string): { red: number[]; blue: number[] } | null => {
     const plusM = body.match(/^(.+?)\s*\+\s*(.+)$/)
-    let redNums, blueNums
+    let redNums: RegExpMatchArray | null
+    let blueNums: RegExpMatchArray | null
     if (plusM) {
-      redNums = plusM[1].match(/\d+/g) || []
-      blueNums = plusM[2].match(/\d+/g) || []
+      redNums = plusM[1].match(/\d+/g)
+      blueNums = plusM[2].match(/\d+/g)
     } else {
       const all = body.match(/\d+/g) || []
-      redNums = all.slice(0, cfg.redCount)
-      blueNums = all.slice(cfg.redCount, cfg.redCount + cfg.blueCount)
+      redNums = all.slice(0, cfg.redCount ?? 0)
+      blueNums = all.slice(cfg.redCount ?? 0, (cfg.redCount ?? 0) + (cfg.blueCount ?? 0))
     }
-    const red = redNums.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= cfg.redMax).sort((a, b) => a - b)
-    const blue = blueNums.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= cfg.blueMax).sort((a, b) => a - b)
-    return (red.length === cfg.redCount && blue.length === cfg.blueCount) ? { red, blue } : null
+    const red = (redNums || []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= (cfg.redMax ?? 0)).sort((a, b) => a - b)
+    const blue = (blueNums || []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= (cfg.blueMax ?? 0)).sort((a, b) => a - b)
+    return (red.length === (cfg.redCount ?? 0) && blue.length === (cfg.blueCount ?? 0)) ? { red, blue } : null
   }
-  const ticketKey = (t) => (t.red || []).join(',') + '|' + (t.blue || []).join(',')
-  const addUnique = (t) => {
+  const ticketKey = (t: { red?: number[]; blue?: number[] }) => (t.red || []).join(',') + '|' + (t.blue || []).join(',')
+  const addUnique = (t: { red?: number[]; blue?: number[] } | null) => {
     if (!t) return
     const k = ticketKey(t)
     if (seen.has(k)) return
@@ -547,18 +558,19 @@ export function extractTickets(text, cfg) {
     if (/^\d+[).、]/.test(line)) continue
     // 简单按 + 切 + 抽数字（与原 parseLine 等价；不处理"红区/蓝区"分段 —— 那是 FileCheck 组件自己用）
     const plusM = line.match(/^(.+?)\s*\+\s*(.+)$/)
-    let redNums, blueNums
+    let redNums: RegExpMatchArray | null
+    let blueNums: RegExpMatchArray | null
     if (plusM) {
-      redNums = plusM[1].match(/\d+/g) || []
-      blueNums = plusM[2].match(/\d+/g) || []
+      redNums = plusM[1].match(/\d+/g)
+      blueNums = plusM[2].match(/\d+/g)
     } else {
       const all = line.match(/\d+/g) || []
-      redNums = all.slice(0, cfg.redCount)
-      blueNums = all.slice(cfg.redCount, cfg.redCount + cfg.blueCount)
+      redNums = all.slice(0, cfg.redCount ?? 0)
+      blueNums = all.slice(cfg.redCount ?? 0, (cfg.redCount ?? 0) + (cfg.blueCount ?? 0))
     }
-    const red = [...new Set(redNums.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= cfg.redMax))].sort((a, b) => a - b)
-    const blue = [...new Set(blueNums.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= cfg.blueMax))].sort((a, b) => a - b)
-    if (red.length === cfg.redCount && blue.length === cfg.blueCount) {
+    const red = [...new Set((redNums || []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= (cfg.redMax ?? 0)))].sort((a, b) => a - b)
+    const blue = [...new Set((blueNums || []).map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= (cfg.blueMax ?? 0)))].sort((a, b) => a - b)
+    if (red.length === (cfg.redCount ?? 0) && blue.length === (cfg.blueCount ?? 0)) {
       addUnique({ red, blue })
     }
   }
@@ -569,8 +581,8 @@ export function extractTickets(text, cfg) {
   // 真实号码字符大概率漂在"裸数字行"里（OCR 直接吐出 "01 02 09 12 18 22 27+03"，或拆碎后不带任何元信息关键词）。
   if (out.length === 0) {
     const META_RE = /(销售期|兑奖期|销售站|机号|操作员|序号|倍数|彩票|LOTTERY|CHINA|WELFARE|双色球|大乐透|七乐彩|快乐8|F3D|福彩3D|组合|^[ \t]*(单式|复式|胆拖|追加)[ \t]*$|红区|蓝区|期数|开奖日期|^[ \t]*[A-Za-z][):：.]|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4,}|>\s*$|:\s*$|\.\.\.|^$|^\s*[A-Za-z]+\s*$)/i
-    const redPool = []
-    const bluePool = []
+    const redPool: number[] = []
+    const bluePool: number[] = []
     for (const rawLine of String(text).split(/\r?\n/)) {
       const line = rawLine.trim()
       if (!line) continue
@@ -579,13 +591,13 @@ export function extractTickets(text, cfg) {
       for (const s of all) {
         const n = Number(s)
         if (!Number.isInteger(n)) continue
-        if (n >= 1 && n <= cfg.redMax && !redPool.includes(n)) redPool.push(n)
-        if (cfg.blueMax && n >= 1 && n <= cfg.blueMax && !bluePool.includes(n)) bluePool.push(n)
+        if (n >= 1 && n <= (cfg.redMax ?? 0) && !redPool.includes(n)) redPool.push(n)
+        if (cfg.blueMax && n >= 1 && n <= (cfg.blueMax ?? 0) && !bluePool.includes(n)) bluePool.push(n)
       }
     }
     // 取首个组合：按出现顺序的红/蓝
-    if (redPool.length >= cfg.redCount && (!cfg.blueMax || bluePool.length >= cfg.blueCount)) {
-      const t = { red: redPool.slice(0, cfg.redCount).sort((a, b) => a - b), blue: cfg.blueMax ? bluePool.slice(0, cfg.blueCount).sort((a, b) => a - b) : [] }
+    if (redPool.length >= (cfg.redCount ?? 0) && (!cfg.blueMax || bluePool.length >= (cfg.blueCount ?? 0))) {
+      const t = { red: redPool.slice(0, cfg.redCount ?? 0).sort((a, b) => a - b), blue: cfg.blueMax ? bluePool.slice(0, cfg.blueCount ?? 0).sort((a, b) => a - b) : [] }
       addUnique(t)
     }
   }
@@ -597,14 +609,14 @@ export function extractTickets(text, cfg) {
 export const MAX_EXPAND_LINES = 100000
 
 /** 把任意玩法票展开为单注数组 */
-export function expandTicket(cfg, ticket) {
+export function expandTicket(cfg: GameConfig, ticket: Ticket | null | undefined): Array<{ red?: number[]; blue?: number[]; digits?: number[]; tail?: number | null; zx?: string }> {
   if (!ticket || typeof ticket !== 'object') return []
   // 直位数字型：展开为 { digits, tail, zx } 单注
   if (cfg.playMode === 'direct') {
     return expandDirectTicket(cfg, ticket)
   }
   const type = ticket.type || 'single'
-  const out = []
+  const out: Array<{ red?: number[]; blue?: number[] }> = []
   if (type === 'single') {
     out.push({ red: [...(ticket.red || [])], blue: [...(ticket.blue || [])] })
   } else if (type === 'multi') {
@@ -613,9 +625,9 @@ export function expandTicket(cfg, ticket) {
     const reds = [...(ticket.red || [])].sort((a, b) => a - b)
     const blues = [...(ticket.blue || [])].sort((a, b) => a - b)
     // 先估算注数，超上限直接返回空，避免 combosOf 生成超大数组爆内存
-    if (comb(reds.length, cfg.redCount) * comb(blues.length, cfg.blueCount) > MAX_EXPAND_LINES) return []
-    combosOf(reds, cfg.redCount).forEach((r) => {
-      combosOf(blues, cfg.blueCount).forEach((b) => out.push({ red: r, blue: b }))
+    if (comb(reds.length, cfg.redCount ?? 0) * comb(blues.length, cfg.blueCount ?? 0) > MAX_EXPAND_LINES) return []
+    combosOf(reds, cfg.redCount ?? 0).forEach((r) => {
+      combosOf(blues, cfg.blueCount ?? 0).forEach((b) => out.push({ red: r, blue: b }))
     })
   } else if (type === 'danTuo') {
     const dan = [...(ticket.danRed || [])].sort((a, b) => a - b)
@@ -624,17 +636,17 @@ export function expandTicket(cfg, ticket) {
     const blueDan = [...(ticket.blueDan || [])].sort((a, b) => a - b)
     const blueTuo = [...(ticket.blueTuo || [])].sort((a, b) => a - b)
     // 后区胆拖（大乐透）：blueDan 固定 + 组合(blueTuo)
-    let blueCombos = []
-    if (blueDan.length > 0 && blueTuo.length >= cfg.blueCount - blueDan.length && blueDan.length < cfg.blueCount) {
-      blueCombos = combosOf(blueTuo, cfg.blueCount - blueDan.length).map((t) =>
+    let blueCombos: number[][] = []
+    if (blueDan.length > 0 && blueTuo.length >= (cfg.blueCount ?? 0) - blueDan.length && blueDan.length < (cfg.blueCount ?? 0)) {
+      blueCombos = combosOf(blueTuo, (cfg.blueCount ?? 0) - blueDan.length).map((t) =>
         [...blueDan, ...t].sort((a, b) => a - b)
       )
     } else {
-      blueCombos = combosOf(blues, cfg.blueCount)
+      blueCombos = combosOf(blues, cfg.blueCount ?? 0)
     }
     // 估算防护
-    if (comb(tuo.length, cfg.redCount - dan.length) * blueCombos.length > MAX_EXPAND_LINES) return []
-    combosOf(tuo, cfg.redCount - dan.length).forEach((t) => {
+    if (comb(tuo.length, (cfg.redCount ?? 0) - dan.length) * blueCombos.length > MAX_EXPAND_LINES) return []
+    combosOf(tuo, (cfg.redCount ?? 0) - dan.length).forEach((t) => {
       blueCombos.forEach((b) => {
         out.push({ red: [...dan, ...t].sort((a, b) => a - b), blue: b })
       })
@@ -644,14 +656,19 @@ export function expandTicket(cfg, ticket) {
 }
 
 /** 对任意玩法票评分：展开所有单注分别评分，取平均分；附带最高分与最低分。s 可选：预计算 stats */
-export function scoreTicketPlay(cfg, draws, ticket, s) {
+export function scoreTicketPlay(
+  cfg: GameConfig,
+  draws: Draw[] | null | undefined,
+  ticket: Ticket,
+  s?: ScoreStats
+): { total: number; max: number; min: number; lines: Array<Record<string, unknown>>; count: number; stats: ScoreStats } {
   const lines = expandTicket(cfg, ticket)
-  if (!lines.length) return { total: 0, lines: [], count: 0 }
+  if (!lines.length) return { total: 0, max: 0, min: 0, lines: [], count: 0, stats: s || computeStats(cfg, draws || []) }
   const st = s || computeStats(cfg, draws || [])
   // 性能优化（1.8.3）：复式/胆拖展开时，同一红球组合会配多个蓝球重复评分。
   // 按红球组合缓存 scoreRed（21 维红球评分），蓝球评分只对 blue 组合算一次。
   // 快乐8 等无蓝彩种直接退化为每注独立（red 即全部号码，无重复）。
-  const redScoreCache = new Map()
+  const redScoreCache = new Map<string, RedScore>()
   const scored = lines.map((l) => {
     const redArr = l.red || []
     const rkey = redArr.join(',')
@@ -671,8 +688,8 @@ export function scoreTicketPlay(cfg, draws, ticket, s) {
       }
     }
   })
-  const avg = scored.reduce((a, x) => a + (x.score.total || 0), 0) / scored.length
-  const totals = scored.map((x) => x.score.total || 0)
+  const avg = scored.reduce((a, x) => a + ((x.score as { total?: number }).total || 0), 0) / scored.length
+  const totals = scored.map((x) => (x.score as { total?: number }).total || 0)
   return {
     total: Math.round(avg),
     max: Math.round(Math.max(...totals)),
@@ -683,21 +700,27 @@ export function scoreTicketPlay(cfg, draws, ticket, s) {
   }
 }
 
+interface PickBestOpts {
+  forbidCold?: boolean
+  strict?: boolean
+  tries?: number
+}
+
 /**
  * 加权池采样择优：从 pool 中随机取 k 个，满足约束则计分，多轮尝试取最高分。
  * opts: { forbidCold, strict, tries }
  *  - strict=true（单注/多注）：第一轮应用 和值/连号/区间 硬约束；不足 92 分时第二轮放宽约束继续择优
  *  - strict=false（复式/胆拖）：号码较多时区间约束不适用，直接按策略权重择优
  */
-function pickBest(cfg, s, pool, k, m, opts) {
+function pickBest(cfg: GameConfig, s: ScoreStats, pool: number[], k: number, m: string[], opts: PickBestOpts = {}): { red: number[]; score: RedScore } {
   const { forbidCold = false, strict = true, tries = 600 } = opts || {}
   const useZone = m.includes('zone')
   const useSum = m.includes('sum')
   const useCons = m.includes('cons')
   const useCold = m.includes('hot')
-  let best = null
+  let best: { red: number[]; score: RedScore } | null = null
 
-  const passes = (picked, applyStrict) => {
+  const passes = (picked: number[], applyStrict: boolean): boolean => {
     if (useCold) {
       let coldIn = 0
       for (const n of picked) if (s.cold.includes(n)) coldIn++
@@ -718,7 +741,7 @@ function pickBest(cfg, s, pool, k, m, opts) {
       if (useZone) {
         const z = scoreRed(cfg, picked, s).zones
         // 快乐8 选 N 时 zoneTarget 按实际号数动态（与 scoreRed 一致）
-        let zt = cfg.zoneTarget
+        let zt = cfg.zoneTarget || []
         if (cfg.kl8 && Array.isArray(zt)) {
           const nn = picked.length
           const a = Math.round(nn * 3 / 10)
@@ -731,35 +754,35 @@ function pickBest(cfg, s, pool, k, m, opts) {
     return true
   }
 
-  const tryRound = (attempts, applyStrict) => {
+  const tryRound = (attempts: number, applyStrict: boolean) => {
     for (let attempt = 0; attempt < attempts; attempt++) {
       const picked = randPickUnique(pool, k).sort((a, b) => a - b)
       if (!passes(picked, applyStrict)) continue
       const sc = scoreRed(cfg, picked, s)
       const total = m.length && m.length < ALL_METHODS.length ? weightedScore(cfg, picked, s, m, sc) : sc.total
-      if (!best || total > best.total) best = { red: picked, score: { ...sc, total } }
-      if (best.total >= 92) break
+      if (!best || total > best.score.total) best = { red: picked, score: { ...sc, total } }
+      if (best.score.total >= 92) break
     }
   }
 
   tryRound(tries, strict)
-  if (strict && (!best || best.total < 92)) tryRound(300, false)
+  if (strict && (!best || best.score.total < 92)) tryRound(300, false)
   if (!best) {
-    const picked = randPick(range(cfg.redMax), k).sort((a, b) => a - b)
+    const picked = randPick(range(cfg.redMax ?? 0), k).sort((a, b) => a - b)
     return { red: picked, score: scoreRed(cfg, picked, s) }
   }
   return best
 }
 
-export function createPickerEngine(cfg, methods) {
+export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
   // cfg: GAME_CONFIG 中的 ssq / dlt
   // methods: 可选策略数组 ['zone','odd','sum','cons','hot']；空数组=真随机；不传=全部策略
   const m = normMethods(methods)
   const useHot = m.includes('hot')
 
-  function buildPool(s) {
-    const pool = []
-    for (let n = 1; n <= cfg.redMax; n++) {
+  function buildPool(s: ScoreStats): number[] {
+    const pool: number[] = []
+    for (let n = 1; n <= (cfg.redMax ?? 0); n++) {
       let w = 2
       if (useHot && s.hot.includes(n)) w = 4
       if (useHot && s.cold.includes(n)) w = 1
@@ -768,13 +791,13 @@ export function createPickerEngine(cfg, methods) {
     return pool
   }
 
-  function generateRed(s, pool, forbidCold, locked) {
-    const lr = normLocked(cfg.redMax, locked)
-    const need = cfg.redCount - lr.length
-    if (need <= 0) return { red: lr.slice(0, cfg.redCount), score: null }
+  function generateRed(s: ScoreStats, pool: number[], forbidCold: boolean, locked: number[] | undefined) {
+    const lr = normLocked(cfg.redMax ?? 0, locked)
+    const need = (cfg.redCount ?? 0) - lr.length
+    if (need <= 0) return { red: lr.slice(0, cfg.redCount ?? 0), score: null }
     // 真随机：不应用任何策略
     if (!m.length) {
-      const poolArr = range(cfg.redMax).filter((n) => !lr.includes(n))
+      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n))
       return { red: [...lr, ...randPick(poolArr, need)].sort((a, b) => a - b), score: null }
     }
     const filteredPool = pool.filter((n) => !lr.includes(n))
@@ -782,12 +805,12 @@ export function createPickerEngine(cfg, methods) {
     return { red: [...lr, ...r.red].sort((a, b) => a - b), score: r.score }
   }
 
-  function generateRedSet(s, pool, k, forbidCold, locked) {
-    const lr = normLocked(cfg.redMax, locked)
+  function generateRedSet(s: ScoreStats, pool: number[], k: number, forbidCold: boolean, locked: number[] | undefined) {
+    const lr = normLocked(cfg.redMax ?? 0, locked)
     const need = k - lr.length
     if (need <= 0) return { red: lr.slice(0, k), score: null }
     if (!m.length) {
-      const poolArr = range(cfg.redMax).filter((n) => !lr.includes(n))
+      const poolArr = range(cfg.redMax ?? 0).filter((n) => !lr.includes(n))
       return { red: [...lr, ...randPick(poolArr, need)].sort((a, b) => a - b), score: null }
     }
     const filteredPool = pool.filter((n) => !lr.includes(n))
@@ -795,28 +818,28 @@ export function createPickerEngine(cfg, methods) {
     return { red: [...lr, ...r.red].sort((a, b) => a - b), score: r.score }
   }
 
-  function buildBluePool(s) {
-    const pool = []
-    for (let b = 1; b <= cfg.blueMax; b++) {
+  function buildBluePool(s: ScoreStats): number[] {
+    const pool: number[] = []
+    for (let b = 1; b <= (cfg.blueMax ?? 0); b++) {
       const w = useHot && s.hotBlue.has(b) ? 3 : 1
       for (let j = 0; j < w; j++) pool.push(b)
     }
     return pool
   }
 
-  function generateBlue(s, pool, locked) {
-    const lb = normLocked(cfg.blueMax, locked)
-    const need = cfg.blueCount - lb.length
-    if (need <= 0) return lb.slice(0, cfg.blueCount)
+  function generateBlue(s: ScoreStats, pool: number[], locked: number[] | undefined): number[] {
+    const lb = normLocked(cfg.blueMax ?? 0, locked)
+    const need = (cfg.blueCount ?? 0) - lb.length
+    if (need <= 0) return lb.slice(0, cfg.blueCount ?? 0)
     if (!useHot) {
-      const poolArr = range(cfg.blueMax).filter((n) => !lb.includes(n))
+      const poolArr = range(cfg.blueMax ?? 0).filter((n) => !lb.includes(n))
       return [...lb, ...randPick(poolArr, need)].sort((a, b) => a - b)
     }
     // 修复（1.8.3）：原来误用传入的红球加权池（pool 是 buildPool 的红球池！），
     // useHot 路径下生成 17~33 的"非法蓝球"，双色球/大乐透兑奖与评分全失真。
     // 蓝球必须用蓝球加权池 buildBluePool(s)。
     const bp = buildBluePool(s).filter((n) => !lb.includes(n))
-    const blues = []
+    const blues: number[] = []
     for (let i = 0; i < need; i++) {
       let b = bp[randInt(0, bp.length - 1)]
       if (blues.includes(b) && bp.length > 1) {
@@ -829,26 +852,26 @@ export function createPickerEngine(cfg, methods) {
 
   /** 按玩法生成一票。s/pool 可选：外部已预计算（generateUntil 循环内复用，避免重复统计）
    *  play.locked = { red: [固定红球], blue: [固定蓝球] } 可选：锁定号码必含，剩余由算法补齐 */
-  function generatePlay(draws, play, preS, prePool) {
+  function generatePlay(draws: Draw[] | null, play: Ticket | undefined, preS?: ScoreStats, prePool?: number[]) {
     if (!draws) draws = []
     const s = preS || computeStats(cfg, draws)
     const pool = prePool || buildPool(s)
     const type = play ? play.type : 'single'
     const append = !!(cfg.zhuijia && play && play.append)
     const locked = (play && play.locked) || {}
-    const lockedRed = normLocked(cfg.redMax, locked.red)
-    const lockedBlue = normLocked(cfg.blueMax, locked.blue)
+    const lockedRed = normLocked(cfg.redMax ?? 0, locked.red)
+    const lockedBlue = normLocked(cfg.blueMax ?? 0, locked.blue)
 
     if (type === 'multi') {
       const n = Math.max(1, Math.min(20, (play && play.n) || 3))
-      const tickets = []
+      const tickets: Array<{ red: number[]; blue: number[]; score: RedScore | Record<string, unknown> }> = []
       for (let i = 0; i < n; i++) {
         const t = generateRed(s, pool, i === 0, lockedRed)
         const blue = generateBlue(s, pool, lockedBlue)
         const score = t.score || scoreRed(cfg, t.red, s)
         tickets.push({ red: t.red, blue, score })
       }
-      const ticket = { type: 'multi', tickets, append }
+      const ticket = { type: 'multi' as const, tickets, append }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
       return { ticket, stats: s, ...scored }
     }
@@ -862,7 +885,7 @@ export function createPickerEngine(cfg, methods) {
       const needB = b - lb.length
       const bluePool = buildBluePool(s).filter((n) => !lb.includes(n))
       const blues = [...lb, ...randPickUnique(bluePool, needB)].sort((a, b) => a - b)
-      const ticket = { type: 'duplex', red: rs.red, blue: blues, append }
+      const ticket = { type: 'duplex' as const, red: rs.red, blue: blues, append }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
       return { ticket, stats: s, ...scored }
     }
@@ -873,8 +896,8 @@ export function createPickerEngine(cfg, methods) {
       // 锁定红球优先作为胆码；超出部分忽略
       const lr = lockedRed.slice(0, danN)
       const dan = generateRedSet(s, pool, danN, false, lr)
-      const restPool = []
-      for (let i = 1; i <= cfg.redMax; i++) {
+      const restPool: number[] = []
+      for (let i = 1; i <= (cfg.redMax ?? 0); i++) {
         if (dan.red.includes(i)) continue
         let w = 2
         if (useHot && s.hot.includes(i)) w = 4
@@ -883,23 +906,23 @@ export function createPickerEngine(cfg, methods) {
       }
       const tuo = randPickUnique(restPool, tuoN).sort((a, b) => a - b)
       // 后区胆拖（大乐透）：blueDanN>0 时蓝球也拆胆拖；lockedBlue 作为后区胆码锁定
-      const blueDanN = Math.max(0, Math.min(cfg.blueCount - 1, (play && play.blueDanN) || 0))
-      const blueTuoN = Math.max(cfg.blueCount - blueDanN, Math.min(cfg.blueMax - blueDanN, (play && play.blueTuoN) || cfg.blueCount))
-      let ticket
+      const blueDanN = Math.max(0, Math.min((cfg.blueCount ?? 0) - 1, (play && play.blueDanN) || 0))
+      const blueTuoN = Math.max((cfg.blueCount ?? 0) - blueDanN, Math.min((cfg.blueMax ?? 0) - blueDanN, (play && play.blueTuoN) || (cfg.blueCount ?? 0)))
+      let ticket: Ticket
       if (blueDanN > 0) {
-        const lb = normLocked(cfg.blueMax, lockedBlue).slice(0, blueDanN)
+        const lb = normLocked(cfg.blueMax ?? 0, lockedBlue).slice(0, blueDanN)
         const needD = blueDanN - lb.length
         const bpool = buildBluePool(s).filter((n) => !lb.includes(n))
         const blueDan = needD > 0
           ? [...lb, ...randPickUnique(bpool, needD)].sort((a, b) => a - b).slice(0, blueDanN)
           : [...lb].sort((a, b) => a - b)
         const restBpool = bpool.filter((n) => !blueDan.includes(n))
-        const blueTuo = randPickUnique(restBpool.length >= blueTuoN ? restBpool : [...restBpool, ...range(cfg.blueMax).filter((n) => !blueDan.includes(n))], blueTuoN).sort((a, b) => a - b)
-        ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blueDan, blueTuo, blue: [...blueDan, ...blueTuo].slice(0, cfg.blueMax), append }
+        const blueTuo = randPickUnique(restBpool.length >= blueTuoN ? restBpool : [...restBpool, ...range(cfg.blueMax ?? 0).filter((n) => !blueDan.includes(n))], blueTuoN).sort((a, b) => a - b)
+        ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blueDan, blueTuo, blue: [...blueDan, ...blueTuo].slice(0, cfg.blueMax ?? 0), append }
       } else {
         // 复式胆拖：蓝球多选（官方玩法，双色球蓝球 1~16 任选、大乐透后区多选）
         const blueN = Math.max(cfg.blueCount, Math.min(cfg.blueMax, (play && play.blueCount) || cfg.blueCount))
-        const lb = normLocked(cfg.blueMax, lockedBlue).slice(0, blueN)
+        const lb = normLocked(cfg.blueMax ?? 0, lockedBlue).slice(0, blueN)
         const needB = blueN - lb.length
         const bpool = buildBluePool(s).filter((n) => !lb.includes(n))
         const blues = needB > 0 ? [...lb, ...randPickUnique(bpool, needB)].sort((a, b) => a - b) : [...lb].sort((a, b) => a - b)
@@ -912,7 +935,7 @@ export function createPickerEngine(cfg, methods) {
     // single（默认）
     const t = generateRed(s, pool, true, lockedRed)
     const blue = generateBlue(s, pool, lockedBlue)
-    const ticket = { type: 'single', red: t.red, blue, append }
+    const ticket = { type: 'single' as const, red: t.red, blue, append }
     const scored = scoreTicketPlay(cfg, draws, ticket, s)
     return { ticket, stats: s, ...scored }
   }
@@ -922,25 +945,34 @@ export function createPickerEngine(cfg, methods) {
    * 异步实现：onProgress 回调 + 定时让出主线程，避免长循环卡死 UI。
    * stats/pool 只计算一次，全程复用，性能远优于逐次 generatePlay。
    */
-  async function generateUntil(draws, play, target, maxAttempts, onProgress, onTicket, forceFull, stopCheck) {
+  async function generateUntil(
+    draws: Draw[],
+    play: Ticket,
+    target?: number,
+    maxAttempts?: number,
+    onProgress?: (i: number, best: unknown) => void,
+    onTicket?: (r: unknown, i: number) => void,
+    forceFull?: boolean,
+    stopCheck?: () => boolean
+  ): Promise<unknown> {
     if (!draws || draws.length === 0) return null
     const cap = Math.max(1, maxAttempts || 20000)
     const t = Math.max(1, Math.min(100, target == null ? 70 : target))
     const s = computeStats(cfg, draws)
     const pool = buildPool(s)
-    let best = null
+    let best: Record<string, unknown> | null = null
     let hitOnce = false
     let stopped = false
     for (let i = 1; i <= cap; i++) {
       const r = generatePlay(draws, play, s, pool)
       if (!r) return null
       if (onTicket) onTicket(r, i)
-      if (!best || r.total > best.total) {
+      if (!best || (r.total as number) > (best.total as number)) {
         best = { ...r, attempts: i }
       }
-      if (r.total >= t) {
-        r.attempts = i
-        r.hitTarget = true
+      if ((r.total as number) >= t) {
+        ;(r as Record<string, unknown>).attempts = i
+        ;(r as Record<string, unknown>).hitTarget = true
         hitOnce = true
         if (!forceFull) return r
       }
@@ -966,7 +998,7 @@ export function createPickerEngine(cfg, methods) {
   }
 
   return {
-    generate(draws, n = 3) {
+    generate(draws: Draw[], n = 3) {
       return generatePlay(draws, { type: 'multi', n })
     },
     generatePlay,
@@ -977,16 +1009,16 @@ export function createPickerEngine(cfg, methods) {
 // ==================== 直位数字型引擎（福彩3D/排列3/排列5/7星彩） ====================
 
 /** 直位统计：每位频率/遗漏 + 尾位频率（7星彩） */
-export function computeDirectStats(cfg, draws) {
-  const nPos = cfg.digits.length
-  const freq = Array.from({ length: nPos }, () => new Array(10).fill(0))
-  const miss = Array.from({ length: nPos }, () => new Array(10).fill(-1))
-  const tailFreq = cfg.tailMax != null ? new Array(cfg.tailMax + 1).fill(0) : null
-  const tailMiss = cfg.tailMax != null ? new Array(cfg.tailMax + 1).fill(-1) : null
-  const sumTailFreq = new Array(10).fill(0)
+export function computeDirectStats(cfg: GameConfig, draws: Draw[]): DirectStats {
+  const nPos = cfg.digits?.length ?? 0
+  const freq = Array.from({ length: nPos }, () => new Array<number>(10).fill(0))
+  const miss = Array.from({ length: nPos }, () => new Array<number>(10).fill(-1))
+  const tailFreq = cfg.tailMax != null ? new Array<number>(cfg.tailMax + 1).fill(0) : null
+  const tailMiss = cfg.tailMax != null ? new Array<number>(cfg.tailMax + 1).fill(-1) : null
+  const sumTailFreq = new Array<number>(10).fill(0)
   const total = draws.length
   for (let idx = 0; idx < total; idx++) {
-    const d = draws[idx] || {}
+    const d = draws[idx] || ({} as Draw)
     const digs = d.digits || []
     for (let p = 0; p < nPos && p < digs.length; p++) {
       const v = Number(digs[p])
@@ -997,9 +1029,9 @@ export function computeDirectStats(cfg, draws) {
     }
     if (tailFreq && d.tail != null) {
       const t = Number(d.tail)
-      if (Number.isInteger(t) && t >= 0 && t <= cfg.tailMax) {
+      if (Number.isInteger(t) && t >= 0 && t <= (cfg.tailMax ?? 0)) {
         tailFreq[t]++
-        tailMiss[t] = idx
+        tailMiss![t] = idx
       }
     }
     // 和值尾数热度（直位选号常用：和值尾 0-9 冷热）
@@ -1011,11 +1043,11 @@ export function computeDirectStats(cfg, draws) {
     }
     if (sCnt) sumTailFreq[sSum % 10]++
   }
-  const hotPos = []
-  const coldPos = []
+  const hotPos: number[][] = []
+  const coldPos: number[][] = []
   for (let p = 0; p < nPos; p++) {
-    const hot = []
-    const cold = []
+    const hot: number[] = []
+    const cold: number[] = []
     for (let v = 0; v <= 9; v++) {
       if (freq[p][v] >= 3) hot.push(v)
       const m = miss[p][v] === -1 ? total : total - miss[p][v]
@@ -1024,7 +1056,7 @@ export function computeDirectStats(cfg, draws) {
     hotPos.push(hot)
     coldPos.push(cold)
   }
-  const lastDraw = draws[0] || {}
+  const lastDraw = draws[0] || ({} as Draw)
   return {
     freq,
     miss,
@@ -1040,8 +1072,8 @@ export function computeDirectStats(cfg, draws) {
 }
 
 /** 直位评分：每位热度 + 和值 + 奇偶 + 大小 + 形态 + 重号 + 跨度 + 尾位热度 */
-export function scoreDigits(cfg, digits, tail, s) {
-  if (!digits || !digits.length) return { total: 0 }
+export function scoreDigits(cfg: GameConfig, digits: number[], tail: number | null, s: DirectStats): DigitScore {
+  if (!digits || !digits.length) return { total: 0 } as DigitScore
   let hotScore = 0
   digits.forEach((v, p) => {
     if (s.hotPos[p] && s.hotPos[p].includes(v)) hotScore += 1
@@ -1093,9 +1125,9 @@ export function scoreDigits(cfg, digits, tail, s) {
   const primeScore = Math.max(0, 100 - Math.abs(primes - target) * 30)
 
   // 镜像对称：0-5、1-6、2-7、3-8、4-9 互补成对，成对越多越对称
-  const mirrorPair = { 0: 5, 1: 6, 2: 7, 3: 8, 4: 9, 5: 0, 6: 1, 7: 2, 8: 3, 9: 4 }
+  const mirrorPair: Record<number, number> = { 0: 5, 1: 6, 2: 7, 3: 8, 4: 9, 5: 0, 6: 1, 7: 2, 8: 3, 9: 4 }
   let paired = 0
-  const seen = new Set()
+  const seen = new Set<number>()
   digits.forEach((n) => {
     const m = mirrorPair[n]
     if (m != null && seen.has(m)) { paired++; seen.delete(m) }
@@ -1144,16 +1176,20 @@ export function scoreDigits(cfg, digits, tail, s) {
 /** 生成一注直位号码：每位按热度加权池采样，多次择优取最高分。
  *  stats 可选：外部已算好的 computeDirectStats 结果，避免循环内反复全量统计（性能关键）。
  */
-export function generateDirect(cfg, draws, opts = {}) {
+export function generateDirect(
+  cfg: GameConfig,
+  draws: Draw[] | null | undefined,
+  opts: { stats?: DirectStats; tries?: number } = {}
+): { digits: number[]; tail: number | null; score: DigitScore } | null {
   if (!draws) draws = []
   const s = opts.stats || computeDirectStats(cfg, draws)
-  const nPos = cfg.digits.length
+  const nPos = cfg.digits?.length ?? 0
   const tries = Math.max(1, opts.tries || 200)
-  let best = null
+  let best: { digits: number[]; tail: number | null; score: DigitScore } | null = null
   for (let i = 0; i < tries; i++) {
-    const digits = []
+    const digits: number[] = []
     for (let p = 0; p < nPos; p++) {
-      const pool = []
+      const pool: number[] = []
       for (let v = 0; v <= 9; v++) {
         let w = 2
         if (s.hotPos[p].includes(v)) w = 4
@@ -1162,9 +1198,9 @@ export function generateDirect(cfg, draws, opts = {}) {
       }
       digits.push(pool[randInt(0, pool.length - 1)])
     }
-    let tail = null
+    let tail: number | null = null
     if (cfg.tailMax != null) {
-      const tpool = []
+      const tpool: number[] = []
       for (let t = 0; t <= cfg.tailMax; t++) {
         let w = 2
         if (s.tailFreq && s.tailFreq[t] >= 3) w = 4
@@ -1179,7 +1215,7 @@ export function generateDirect(cfg, draws, opts = {}) {
 }
 
 /** 直位玩法注数与金额计算：单注/多注/定位复式 */
-export function calcDirectPlay(cfg, play) {
+export function calcDirectPlay(cfg: GameConfig, play: Ticket | null | undefined): { combos: number; amount: number; append: boolean; multiple: number } {
   const type = play ? play.type : 'single'
   let combos = 0
   if (type === 'single') combos = 1
@@ -1197,39 +1233,49 @@ export function calcDirectPlay(cfg, play) {
 }
 
 /** 直位票展开为单注数组（定位复式做笛卡尔积；7星彩含尾位）。估算注数超上限时返回空。 */
-export function expandDirectTicket(cfg, ticket) {
-  const type = ticket.type || 'single'
-  const out = []
+export function expandDirectTicket(cfg: GameConfig, ticket: Ticket | null | undefined): Array<{ digits: number[]; tail: number | null; zx: string }> {
+  const t = ticket || ({} as Ticket)
+  const type = t.type || 'single'
+  const out: Array<{ digits: number[]; tail: number | null; zx: string }> = []
   if (type === 'single') {
-    out.push({ digits: [...(ticket.digits || [])], tail: ticket.tail != null ? ticket.tail : null, zx: ticket.zx || 'direct' })
+    out.push({ digits: [...(t.digits || [])], tail: t.tail != null ? t.tail : null, zx: t.zx || 'direct' })
   } else if (type === 'multi') {
-    ;(ticket.tickets || []).forEach((t) => {
-      out.push({ digits: [...(t.digits || [])], tail: t.tail != null ? t.tail : null, zx: ticket.zx || t.zx || 'direct' })
+    ;(t.tickets || []).forEach((sub) => {
+      out.push({ digits: [...(sub.digits || [])], tail: sub.tail != null ? sub.tail : null, zx: t.zx || sub.zx || 'direct' })
     })
   } else if (type === 'duplex') {
-    const pos = (ticket.pos || []).map((arr) => [...arr])
-    const tails = ticket.tail && Array.isArray(ticket.tail) && ticket.tail.length ? [...ticket.tail] : [null]
+    const pos = (t.pos || []).map((arr) => [...arr])
+    const tails = t.tail && Array.isArray(t.tail) && t.tail.length ? [...(t.tail as unknown as number[])] : [null]
     // 组合爆炸防护：每位候选数乘积 × 尾位数
     let est = 1
     for (const arr of pos) est *= Math.max(1, arr.length)
     est *= Math.max(1, tails.length)
     if (est > MAX_EXPAND_LINES) return []
-    let combos = [[]]
+    let combos: number[][] = [[]]
     pos.forEach((arr) => {
-      const next = []
+      const next: number[][] = []
       combos.forEach((c) => arr.forEach((v) => next.push([...c, v])))
       combos = next
     })
     combos.forEach((c) => {
-      tails.forEach((t) => out.push({ digits: c, tail: t, zx: ticket.zx || 'direct' }))
+      tails.forEach((tl) => out.push({ digits: c, tail: tl, zx: t.zx || 'direct' }))
     })
   }
   return out
 }
 
 /** 直位生成器：持续生成直到平均分达到目标 */
-export function createDirectPickerEngine(cfg) {
-  async function generateUntil(draws, play, target, maxAttempts, onProgress, onTicket, forceFull, stopCheck) {
+export function createDirectPickerEngine(cfg: GameConfig) {
+  async function generateUntil(
+    draws: Draw[],
+    play: Ticket,
+    target?: number,
+    maxAttempts?: number,
+    onProgress?: (i: number, best: unknown) => void,
+    onTicket?: (r: unknown, i: number) => void,
+    forceFull?: boolean,
+    stopCheck?: () => boolean
+  ): Promise<unknown> {
     if (!draws || !draws.length) return null
     const cap = Math.max(1, maxAttempts || 20000)
     const t = Math.max(1, Math.min(100, target == null ? 70 : target))
@@ -1237,11 +1283,11 @@ export function createDirectPickerEngine(cfg) {
     // 性能修复（1.8.3）：stats 只算一次并传给 generateDirect，
     // 原来每次迭代 generateDirect 内部都重新 computeDirectStats（10 万次全量统计 = 卡顿根因）
     const st = computeDirectStats(cfg, draws)
-    let best = null
+    let best: Record<string, unknown> | null = null
     let hitOnce = false
     let stopped = false
     for (let i = 1; i <= cap; i++) {
-      const lines = []
+      const lines: Array<{ digits: number[]; tail: number | null; score: DigitScore }> = []
       for (let j = 0; j < n; j++) {
         const g = generateDirect(cfg, draws, { tries: 80, stats: st })
         if (g) lines.push(g)
@@ -1254,10 +1300,10 @@ export function createDirectPickerEngine(cfg) {
           : { type: 'single', digits: lines[0].digits, tail: lines[0].tail }
       const r = { ticket, total: avg, count: n, stats: st }
       if (onTicket) onTicket(r, i)
-      if (!best || avg > best.total) best = { ...r, attempts: i }
+      if (!best || avg > (best.total as number)) best = { ...r, attempts: i }
       if (avg >= t) {
-        r.attempts = i
-        r.hitTarget = true
+        ;(r as Record<string, unknown>).attempts = i
+        ;(r as Record<string, unknown>).hitTarget = true
         hitOnce = true
         if (!forceFull) return r
       }
@@ -1282,8 +1328,8 @@ export function createDirectPickerEngine(cfg) {
     return best
   }
   return {
-    generate(draws, n = 3) {
-      const lines = []
+    generate(draws: Draw[] | null | undefined, n = 3) {
+      const lines: Array<{ digits: number[]; tail: number | null; score: DigitScore }> = []
       const st = computeDirectStats(cfg, draws || [])
       for (let j = 0; j < n; j++) {
         const g = generateDirect(cfg, draws, { stats: st })
@@ -1305,7 +1351,7 @@ export function createDirectPickerEngine(cfg) {
  * 每个彩种按 cfg.recommendMethods 展示对应维度的评分，数量与推荐策略一致（≥6），
  * 缺失字段兜底 0，避免旧数据/直位字段不存在时显示 NaN。
  */
-const SCORE_ITEM_DEFS = {
+const SCORE_ITEM_DEFS: Record<string, { label: string; key: string }> = {
   // 乐透型（红蓝球）
   zone: { label: '区间', key: 'zoneScore' },
   odd: { label: '奇偶', key: 'oddScore' },
@@ -1329,17 +1375,17 @@ const SCORE_ITEM_DEFS = {
   headTail: { label: '龙头凤尾', key: 'headTailScore' },
   clamp: { label: '夹号定位', key: 'clampScore' }
 }
-export function scoreItemsFor(cfg, score) {
-  const safe = (v) => (Number.isFinite(v) ? v : 0)
-  const methods = (cfg && cfg.recommendMethods && cfg.recommendMethods.length) ? cfg.recommendMethods : ALL_METHODS
-  const items = []
+export function scoreItemsFor(cfg: GameConfig | null | undefined, score: Record<string, number> | null | undefined): Array<{ label: string; value: number; method: string }> {
+  const safe = (v: unknown): number => (Number.isFinite(v) ? (v as number) : 0)
+  const methods = (cfg && cfg.recommendMethods && cfg.recommendMethods.length) ? cfg.recommendMethods : [...ALL_METHODS]
+  const items: Array<{ label: string; value: number; method: string }> = []
   methods.forEach((m) => {
     const def = SCORE_ITEM_DEFS[m]
     if (!def || !score) return
     if (Number.isFinite(score[def.key])) items.push({ label: def.label, value: safe(score[def.key]), method: m })
   })
   // 直位彩种额外兼容 formScore（形态组合）
-  if (cfg && cfg.playMode === 'direct' && Number.isFinite(score.formScore)) {
+  if (cfg && cfg.playMode === 'direct' && score && Number.isFinite(score.formScore)) {
     items.push({ label: '形态', value: safe(score.formScore), method: 'form' })
   }
   if (!items.length && score) {

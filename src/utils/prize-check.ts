@@ -1,8 +1,9 @@
 // 中奖判定 / 奖金计算 / 兑奖流程
 // 开奖为独立随机事件，以下仅用于中奖结果核对与奖金展示
 import { expandTicket } from './picker-engine'
+import type { Draw, GameConfig, HistoryHit, PrizeLevel, PrizeResult, Ticket, TicketCheckResult } from './types'
 
-export const PRIZE_RULES = {
+export const PRIZE_RULES: Record<string, PrizeLevel[]> = {
   ssq: [
     { red: 6, blue: 1, level: 1, name: '一等奖', fixed: null },
     { red: 6, blue: 0, level: 2, name: '二等奖', fixed: null },
@@ -42,7 +43,7 @@ export const PRIZE_RULES = {
 }
 
 /** 快乐8：按玩法（选1~选10）与中奖个数匹配，固定奖金以官方接口 prizeMap 为准 */
-export function kl8Prize(chosen, draw) {
+export function kl8Prize(chosen: number[], draw: Draw | null): PrizeResult {
   if (!draw) return { level: 0, name: '未开奖', match: 0, bonus: 0, draw: null }
   const n = chosen.length
   const set = new Set(draw.red || [])
@@ -58,20 +59,26 @@ export function kl8Prize(chosen, draw) {
   return { level: 0, name: '未中奖', match, bonus: 0, draw }
 }
 
-export function checkPrize(cfg, red, blue, draw, append) {
+export function checkPrize(
+  cfg: GameConfig,
+  red: number[],
+  blue: number[],
+  draw: Draw | null,
+  append?: boolean
+): PrizeResult {
   if (!draw) return { level: 0, name: '未开奖', redMatch: 0, blueMatch: 0, bonus: 0, draw: null }
   // 快乐8：按选几中几判定（红球即号码池，无蓝）
   if (cfg.kl8) {
     return kl8Prize(red || [], draw)
   }
   const redSet = new Set(draw.red || [])
-  const blueList = [draw.blue, draw.blue2].filter((b) => b != null)
+  const blueList = [draw.blue, draw.blue2].filter((b): b is number => b != null)
   const redMatch = red.filter((n) => redSet.has(n)).length
   const blueMatch = blue.filter((b) => blueList.includes(b)).length
   const rules = PRIZE_RULES[cfg.key] || []
   for (const r of rules) {
     if (redMatch >= r.red && blueMatch >= r.blue) {
-      let bonus = r.fixed
+      let bonus: number | null = r.fixed
       if (r.fixed === null) {
         bonus = draw.firstPrizePerBet != null ? draw.firstPrizePerBet : null
         // 大乐透追加：一/二等奖奖金 ×1.8
@@ -83,12 +90,18 @@ export function checkPrize(cfg, red, blue, draw, append) {
   return { level: 0, name: '未中奖', redMatch, blueMatch, bonus: 0, draw, append: !!append }
 }
 
-export function isBigWin(p) {
-  return p && (p.level === 1 || p.level === 2)
+export function isBigWin(p: PrizeResult | null | undefined): boolean {
+  return !!p && (p.level === 1 || p.level === 2)
 }
 
 /** 直位数字型单注判定：3D/排列3（直选/组选3/组选6）、排列5、7星彩（连续匹配+尾位） */
-export function checkPrizeDirect(cfg, digits, tail, draw, zx) {
+export function checkPrizeDirect(
+  cfg: GameConfig,
+  digits: number[] | null | undefined,
+  tail: number | null | undefined,
+  draw: Draw | null,
+  zx?: string
+): PrizeResult {
   if (!draw) return { level: 0, name: '未开奖', digitsMatch: 0, tailMatch: false, bonus: 0, draw: null }
   const key = cfg.key
   const dDig = draw.digits || []
@@ -140,18 +153,18 @@ export function checkPrizeDirect(cfg, digits, tail, draw, zx) {
 }
 
 /** 直位票逐注核对（支持单注/多注/定位复式展开） */
-export function checkTicketDirect(cfg, ticket, draw) {
+export function checkTicketDirect(cfg: GameConfig, ticket: Ticket | null | undefined, draw: Draw | null): TicketCheckResult {
   if (!draw) {
     return { level: 0, name: '未开奖', bonus: 0, winCount: 0, totalCount: 0, lines: [], draw: null, best: null }
   }
   const lines = expandTicket(cfg, ticket)
   const multiple = Math.max(1, Math.min(99, (ticket && ticket.multiple) || 1))
   const results = lines.map((l) => {
-    const prize = checkPrizeDirect(cfg, l.digits, l.tail, draw, l.zx)
+    const prize = checkPrizeDirect(cfg, (l as { digits?: number[] }).digits, (l as { tail?: number | null }).tail, draw, (l as { zx?: string }).zx)
     if (prize.bonus && multiple > 1) prize.bonus = prize.bonus * multiple
-    return { digits: l.digits, tail: l.tail, zx: l.zx, prize }
+    return { digits: (l as { digits?: number[] }).digits, tail: (l as { tail?: number | null }).tail, zx: (l as { zx?: string }).zx, prize }
   })
-  let best = null
+  let best: PrizeResult | null = null
   let bonus = 0
   let winCount = 0
   results.forEach((r) => {
@@ -175,10 +188,10 @@ export function checkTicketDirect(cfg, ticket, draw) {
 
 /**
  * 对任意玩法票（单注/多注/复式/胆拖）展开后逐注核对中奖。
- * ticket 结构见 picker-engine.js 的 expandTicket。
+ * ticket 结构见 picker-engine 的 expandTicket。
  * 返回：{ level, name, bonus, winCount, totalCount, lines, draw, best }
  */
-export function checkTicket(cfg, ticket, draw) {
+export function checkTicket(cfg: GameConfig, ticket: Ticket | null | undefined, draw: Draw | null): TicketCheckResult {
   if (!draw) {
     return { level: 0, name: '未开奖', bonus: 0, winCount: 0, totalCount: 0, lines: [], draw: null, best: null }
   }
@@ -189,12 +202,12 @@ export function checkTicket(cfg, ticket, draw) {
   const append = !!(ticket && ticket.append)
   const multiple = Math.max(1, Math.min(99, (ticket && ticket.multiple) || 1))
   const results = lines.map((l) => {
-    const prize = checkPrize(cfg, l.red, l.blue, draw, append)
+    const prize = checkPrize(cfg, (l as { red?: number[] }).red || [], (l as { blue?: number[] }).blue || [], draw, append)
     // 倍数投注：单注奖金 × 倍数
     if (prize.bonus && multiple > 1) prize.bonus = prize.bonus * multiple
-    return { red: l.red, blue: l.blue, prize }
+    return { red: (l as { red?: number[] }).red, blue: (l as { blue?: number[] }).blue, prize }
   })
-  let best = null
+  let best: PrizeResult | null = null
   let bonus = 0
   let winCount = 0
   results.forEach((r) => {
@@ -217,7 +230,7 @@ export function checkTicket(cfg, ticket, draw) {
 }
 
 /** 大奖兑奖流程（一二等奖） */
-export function bigWinFlow(cfg, prize) {
+export function bigWinFlow(cfg: GameConfig, prize: PrizeResult): string {
   const center = isFucai(cfg) ? '省级福利彩票发行中心' : '省级体育彩票管理中心'
   return [
     '恭喜您中得' + prize.name + '！请按以下流程完成兑奖：',
@@ -234,7 +247,7 @@ export function bigWinFlow(cfg, prize) {
 }
 
 /** 小额中奖提示（三~六/九等奖）：结构化兑奖流程（可被 buildFlowData 解析为步骤） */
-export function smallWinNote(cfg, prize) {
+export function smallWinNote(cfg: GameConfig, prize: PrizeResult): string {
   const center = isFucai(cfg) ? '福彩投注站' : '体彩投注站'
   const over3000 = prize.fixed != null ? prize.fixed : (prize.bonus || 0)
   return [
@@ -249,7 +262,7 @@ export function smallWinNote(cfg, prize) {
   ].join('\n')
 }
 
-export function fmtBonus(n) {
+export function fmtBonus(n: number | null | undefined): string {
   if (n == null || isNaN(n)) return '浮动待定'
   if (n >= 100000000) return (n / 100000000).toFixed(2) + ' 亿'
   if (n >= 10000) return (n / 10000).toFixed(1) + ' 万'
@@ -259,7 +272,7 @@ export function fmtBonus(n) {
 /** 福彩/体彩归属：福彩=双色球/七乐彩/快乐8/福彩3D，体彩=大乐透/排列3/排列5/7星彩
  *  修复（1.8.3）：原实现漏了快乐8（kl8）——快乐8是中国福利彩票发行管理中心发行的，
  *  兑奖流程错误显示为"体彩管理中心"。 */
-export function isFucai(cfg) {
+export function isFucai(cfg: GameConfig | null | undefined): boolean {
   const k = cfg && cfg.key
   return k === 'ssq' || k === 'qlc' || k === 'kl8' || k === 'fc3d'
 }
@@ -269,7 +282,13 @@ export function isFucai(cfg) {
  * 一旦某期命中即返回该期中奖结果；全部未命中则用最新一期返回未中奖。
  * 适合"以前买的票"场景——最新一期查不到就自动往前查。
  */
-export function checkPrizeHistory(cfg, red, blue, draws, append) {
+export function checkPrizeHistory(
+  cfg: GameConfig,
+  red: number[],
+  blue: number[],
+  draws: Draw[] | null | undefined,
+  append?: boolean
+): PrizeResult {
   if (!draws || !draws.length) return checkPrize(cfg, red, blue, null)
   for (const d of draws) {
     const p = checkPrize(cfg, red, blue, d, append)
@@ -279,7 +298,13 @@ export function checkPrizeHistory(cfg, red, blue, draws, append) {
 }
 
 /** 直位单注自动追溯核对 */
-export function checkPrizeDirectHistory(cfg, digits, tail, draws, zx) {
+export function checkPrizeDirectHistory(
+  cfg: GameConfig,
+  digits: number[],
+  tail: number | null | undefined,
+  draws: Draw[] | null | undefined,
+  zx?: string
+): PrizeResult {
   if (!draws || !draws.length) return checkPrizeDirect(cfg, digits, tail, null, zx)
   for (const d of draws) {
     const p = checkPrizeDirect(cfg, digits, tail, d, zx)
@@ -292,7 +317,7 @@ export function checkPrizeDirectHistory(cfg, digits, tail, draws, zx) {
  * 任意玩法票自动追溯核对：从最近一期往前遍历，一旦某期有任意一注中奖即返回；
  * 全部未命中则用最新一期返回未中奖结果。
  */
-export function checkTicketHistory(cfg, ticket, draws) {
+export function checkTicketHistory(cfg: GameConfig, ticket: Ticket | null | undefined, draws: Draw[] | null | undefined): TicketCheckResult {
   if (!draws || !draws.length) return checkTicket(cfg, ticket, null)
   for (const d of draws) {
     const r = checkTicket(cfg, ticket, d)
@@ -302,12 +327,12 @@ export function checkTicketHistory(cfg, ticket, draws) {
 }
 
 /** 从开奖数据中提取一等奖中奖省份列表（兼容字符串与 {province} 对象两种结构） */
-function extractProvinces(draw) {
+function extractProvinces(draw: Draw): string[] {
   const w = draw && draw.winners
   if (!Array.isArray(w) || !w.length) return []
-  const set = new Set()
+  const set = new Set<string>()
   for (const item of w) {
-    const p = typeof item === 'string' ? item : item && item.province
+    const p = typeof item === 'string' ? item : (item as { province?: string }).province
     if (p) set.add(String(p))
   }
   return [...set]
@@ -318,9 +343,13 @@ function extractProvinces(draw) {
  * 用于自选号历史记录展示"号码多次中奖"的期数 / 金额 / 省份 / 奖金总额。
  * 返回：{ hits: [{ issue, date, level, name, bonus, winCount, provinceText }], hitCount, totalBonus }
  */
-export function checkTicketHistoryMulti(cfg, ticket, draws) {
+export function checkTicketHistoryMulti(
+  cfg: GameConfig,
+  ticket: Ticket | null | undefined,
+  draws: Draw[] | null | undefined
+): { hits: HistoryHit[]; hitCount: number; totalBonus: number } {
   if (!draws || !draws.length) return { hits: [], hitCount: 0, totalBonus: 0 }
-  const hits = []
+  const hits: HistoryHit[] = []
   let totalBonus = 0
   for (const d of draws) {
     const r = checkTicket(cfg, ticket, d)

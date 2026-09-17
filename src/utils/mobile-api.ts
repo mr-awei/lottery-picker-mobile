@@ -7,6 +7,7 @@
  * - 彩种：双色球 / 大乐透 / 七乐彩 / 快乐8 / 福彩3D / 排列3 / 排列5 / 7星彩（对齐桌面端 data-fetcher）
  */
 import { Capacitor, CapacitorHttp } from '@capacitor/core'
+import type { ApiDataResult, Draw, DrawWinner } from './types'
 
 const UA =
   'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
@@ -17,14 +18,14 @@ const CACHE_PREFIX = 'lp-data-'
 
 /** v1.9.4：跨域/网络失败时回退本地快照 —— 解决 devtools 看不到 fetch 的 "Failed to fetch"（cwl/sporttery 不发 ACAO，被浏览器拦截）。模块级变量暴露最近一次来源。 */
 let _lastReqFromSnapshot = false
-export function lastRequestFromSnapshot() {
+export function lastRequestFromSnapshot(): boolean {
   return _lastReqFromSnapshot
 }
 
 /** 从 URL 推导本地快照文件名（仅匹配已知端点）：
  *  https://www.cwl.gov.cn/...?...name=ssq → "cwl-ssq"
  *  https://webapi.sporttery.cn/...?...gameNo=85 → "sp-85" */
-function detectSnapshotKey(url) {
+function detectSnapshotKey(url: string): string | null {
   const m1 = url.match(/cwl\.gov\.cn[^?]*\?[^&]*name=(\w+)/)
   if (m1) return `cwl-${m1[1]}`
   const m2 = url.match(/sporttery\.cn[^?]*\?[^&]*gameNo=(\d+)/)
@@ -33,7 +34,7 @@ function detectSnapshotKey(url) {
 }
 
 /** 拉本地快照（dist 内置，浏览器 fetch 直接同源，APK file:// 也同源 —— 两条路径都不受 CORS 限制） */
-async function fetchLocalSnapshot(key) {
+async function fetchLocalSnapshot(key: string): Promise<string> {
   const r = await fetch(`./snapshots/${key}.json`, { headers: { Accept: 'application/json' } })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return await r.text()
@@ -51,21 +52,21 @@ async function fetchLocalSnapshot(key) {
  *  - 原生 CapacitorHttp 也可能在弱网/官方 CDN 故障时失败
  *  - 浏览器模式下"快照"和"实时"两条路径都尝试，让用户/开发都能在 Edge / WebView 看到数据
  */
-async function requestJson(url, referer, retries = 3) {
-  const toJson = (data) => {
+async function requestJson(url: string, referer: string, retries = 3): Promise<unknown> {
+  const toJson = (data: unknown): unknown => {
     if (typeof data === 'string') {
       const t = data.trim()
       if (!t) throw new Error('接口返回为空')
       try {
         return JSON.parse(t)
-      } catch (e) {
+      } catch {
         throw new Error('接口返回不是合法 JSON')
       }
     }
     return data
   }
 
-  const headers = {
+  const headers: Record<string, string> = {
     'User-Agent': UA,
     Accept: 'application/json, text/plain, */*',
     ...(referer ? { Referer: referer } : {})
@@ -73,11 +74,11 @@ async function requestJson(url, referer, retries = 3) {
 
   const snapKey = detectSnapshotKey(url)
 
-  const doRequest = async () => {
+  const doRequest = async (): Promise<unknown> => {
     // 1) 主路径：原生 CapacitorHttp；浏览器 fetch
-    let primaryStatus = null
-    let primaryData = null
-    let primaryErr = null
+    let primaryStatus: number | null = null
+    let primaryData: unknown = null
+    let primaryErr: Error | null = null
     try {
       if (Capacitor.isNativePlatform()) {
         const r = await CapacitorHttp.get({
@@ -97,7 +98,7 @@ async function requestJson(url, referer, retries = 3) {
       _lastReqFromSnapshot = false
       return toJson(primaryData)
     } catch (e) {
-      primaryErr = e
+      primaryErr = e as Error
     }
 
     // 2) 兜底：本地快照（已知端点 cwl/sporttery）
@@ -109,13 +110,13 @@ async function requestJson(url, referer, retries = 3) {
         _lastReqFromSnapshot = true
         return toJson(snap)
       } catch (e2) {
-        throw new Error(`远程失败（${primaryErr.message}）；本地快照也不可用（${e2.message}）`)
+        throw new Error(`远程失败（${primaryErr!.message}）；本地快照也不可用（${(e2 as Error).message}）`)
       }
     }
     throw primaryErr
   }
 
-  let lastErr
+  let lastErr: Error | unknown
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await doRequest()
@@ -128,12 +129,12 @@ async function requestJson(url, referer, retries = 3) {
       }
     }
   }
-  throw new Error(lastErr && lastErr.message ? lastErr.message : '网络请求失败，请检查网络连接后重试')
+  throw new Error(lastErr && (lastErr as Error).message ? (lastErr as Error).message : '网络请求失败，请检查网络连接后重试')
 }
 
 /** 把省份映射为标准名（处理直辖市/自治区简称） */
-function normalizeProvince(name) {
-  const map = {
+function normalizeProvince(name: string): string | null {
+  const map: Record<string, string> = {
     北京: '北京', 上海: '上海', 天津: '天津', 重庆: '重庆',
     内蒙古: '内蒙古', 广西: '广西', 西藏: '西藏', 宁夏: '宁夏', 新疆: '新疆'
   }
@@ -145,11 +146,11 @@ function normalizeProvince(name) {
 }
 
 /** 解析开奖公告文字中的省级中奖分布，如 "北京3注，安徽1注，共4注。" */
-function parseProvinceContent(content) {
+function parseProvinceContent(content: string): DrawWinner[] {
   if (!content || typeof content !== 'string') return []
-  const out = []
+  const out: DrawWinner[] = []
   const re = /([\u4e00-\u9fa5]{2,6}?)(\d+)注/g
-  let m
+  let m: RegExpExecArray | null
   while ((m = re.exec(content)) !== null) {
     const raw = m[1]
     if (/^(共|单|合计|其中)/.test(raw)) continue
@@ -163,11 +164,27 @@ function parseProvinceContent(content) {
   return out
 }
 
+interface CwlRow {
+  code?: string
+  date?: string
+  red?: string
+  blue?: string | number
+  sales?: string | number
+  poolmoney?: string | number
+  content?: string
+  prizegrades?: Array<{ type?: string | number; typemoney?: string | number; typenum?: string | number }>
+}
+
+interface CwlOpts {
+  hasBlue?: boolean
+  firstType?: string | number
+}
+
 /** 福彩通用解析：red 逗号分隔数字串；blue 可空；prizegrades 构建 prizeMap */
-function parseCwlRows(rows, opts = {}) {
+function parseCwlRows(rows: CwlRow[], opts: CwlOpts = {}): Draw[] {
   return rows.map((r) => {
     const red = String(r.red || '').split(',').filter(Boolean).map(Number)
-    const prizeMap = {}
+    const prizeMap: Record<string, number> = {}
     if (Array.isArray(r.prizegrades)) {
       r.prizegrades.forEach((p) => {
         const amt = String(p.typemoney || '').replace(/,/g, '')
@@ -192,7 +209,7 @@ function parseCwlRows(rows, opts = {}) {
       })() : null,
       sales: r.sales ? Number(r.sales) : null,
       pool: r.poolmoney ? Number(r.poolmoney) : null,
-      winners: parseProvinceContent(r.content),
+      winners: parseProvinceContent(r.content || ''),
       maxPersonalWin: null,
       maxPersonalWinNote: '',
       prizeMap
@@ -200,13 +217,27 @@ function parseCwlRows(rows, opts = {}) {
   })
 }
 
+interface PrizeLevelEntry {
+  prizeLevel?: string
+  stakeAmountFormat?: string
+  stakeCount?: string | number
+}
+
+interface SportteryRow {
+  lotteryDrawNum?: string
+  lotteryDrawTime?: string
+  lotteryDrawResult?: string
+  totalSaleAmount?: string | number
+  prizeLevelList?: PrizeLevelEntry[]
+}
+
 /** 体彩通用解析：result 空格分隔数字串 */
-function parseSportteryRows(rows) {
+function parseSportteryRows(rows: SportteryRow[]): Draw[] {
   return rows.map((r) => {
     const nums = String(r.lotteryDrawResult || '').trim().split(/\s+/).filter(Boolean).map(Number)
-    const prizeMap = {}
+    const prizeMap: Record<string, number> = {}
     const list = Array.isArray(r.prizeLevelList) ? r.prizeLevelList : []
-    let first = null
+    let first: PrizeLevelEntry | null = null
     list.forEach((p) => {
       const amt = String(p.stakeAmountFormat || '').replace(/,/g, '')
       if (amt !== '' && Number(amt) > 0) prizeMap[String(p.prizeLevel || '')] = Number(amt)
@@ -231,43 +262,47 @@ function parseSportteryRows(rows) {
 }
 
 /** 双色球：福彩官网 cwl.gov.cn */
-async function fetchSSQ(count = MAX_DRAWS) {
+async function fetchSSQ(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=ssq&issueCount=${count}&issueStart=&issueEnd=&dayStart=&dayEnd=`
   const json = await requestJson(url, '')
-  if (!json || json.state !== 0 || !Array.isArray(json.result)) {
+  const j = json as { state?: number; result?: CwlRow[] }
+  if (!json || j.state !== 0 || !Array.isArray(j.result)) {
     throw new Error('双色球接口返回结构异常')
   }
-  return parseCwlRows(json.result, { firstType: 1 })
+  return parseCwlRows(j.result, { firstType: 1 })
 }
 
 /** 七乐彩：福彩官网，red=7 基本号，blue=特别号 */
-async function fetchQLC(count = MAX_DRAWS) {
+async function fetchQLC(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=qlc&issueCount=${count}&issueStart=&issueEnd=&dayStart=&dayEnd=`
   const json = await requestJson(url, '')
-  if (!json || json.state !== 0 || !Array.isArray(json.result)) {
+  const j = json as { state?: number; result?: CwlRow[] }
+  if (!json || j.state !== 0 || !Array.isArray(j.result)) {
     throw new Error('七乐彩接口返回结构异常')
   }
-  return parseCwlRows(json.result, { firstType: 1 })
+  return parseCwlRows(j.result, { firstType: 1 })
 }
 
 /** 快乐8：福彩官网，red=20 个开奖号，prizegrades 为 x1z1~x10z10 全玩法 */
-async function fetchKL8(count = MAX_DRAWS) {
+async function fetchKL8(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=kl8&issueCount=${count}&issueStart=&issueEnd=&dayStart=&dayEnd=`
   const json = await requestJson(url, '')
-  if (!json || json.state !== 0 || !Array.isArray(json.result)) {
+  const j = json as { state?: number; result?: CwlRow[] }
+  if (!json || j.state !== 0 || !Array.isArray(j.result)) {
     throw new Error('快乐8接口返回结构异常')
   }
-  return parseCwlRows(json.result, { firstType: 'x10z10' })
+  return parseCwlRows(j.result, { firstType: 'x10z10' })
 }
 
 /** 福彩3D：福彩官网，red 为逗号分隔的 3 位数字 */
-async function fetchFC3D(count = MAX_DRAWS) {
+async function fetchFC3D(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://www.cwl.gov.cn/cwl_admin/front/cwlkj/search/kjxx/findDrawNotice?name=3d&issueCount=${count}&issueStart=&issueEnd=&dayStart=&dayEnd=`
   const json = await requestJson(url, '')
-  if (!json || json.state !== 0 || !Array.isArray(json.result)) {
+  const j = json as { state?: number; result?: CwlRow[] }
+  if (!json || j.state !== 0 || !Array.isArray(j.result)) {
     throw new Error('福彩3D接口返回结构异常')
   }
-  return parseCwlRows(json.result, { hasBlue: false }).map((d) => ({
+  return parseCwlRows(j.result, { hasBlue: false }).map((d) => ({
     ...d,
     blue: null,
     blue2: null,
@@ -278,13 +313,14 @@ async function fetchFC3D(count = MAX_DRAWS) {
 }
 
 /** 排列3：体彩 gameNo=35，result 3 位 */
-async function fetchPL3(count = MAX_DRAWS) {
+async function fetchPL3(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=35&provinceId=0&pageSize=${count}&isVerify=1&pageNo=1`
   const json = await requestJson(url, 'https://static.sporttery.cn/')
-  if (!json || json.errorCode !== '0' || !json.value || !Array.isArray(json.value.list)) {
+  const j = json as { errorCode?: string; value?: { list?: SportteryRow[] } }
+  if (!json || j.errorCode !== '0' || !j.value || !Array.isArray(j.value.list)) {
     throw new Error('排列3接口返回结构异常')
   }
-  return parseSportteryRows(json.value.list).map((d) => ({
+  return parseSportteryRows(j.value.list).map((d) => ({
     ...d,
     digits: d.red.slice(0, 3),
     tail: null
@@ -292,13 +328,14 @@ async function fetchPL3(count = MAX_DRAWS) {
 }
 
 /** 排列5：体彩 gameNo=350133，result 5 位 */
-async function fetchPL5(count = MAX_DRAWS) {
+async function fetchPL5(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=350133&provinceId=0&pageSize=${count}&isVerify=1&pageNo=1`
   const json = await requestJson(url, 'https://static.sporttery.cn/')
-  if (!json || json.errorCode !== '0' || !json.value || !Array.isArray(json.value.list)) {
+  const j = json as { errorCode?: string; value?: { list?: SportteryRow[] } }
+  if (!json || j.errorCode !== '0' || !j.value || !Array.isArray(j.value.list)) {
     throw new Error('排列5接口返回结构异常')
   }
-  return parseSportteryRows(json.value.list).map((d) => ({
+  return parseSportteryRows(j.value.list).map((d) => ({
     ...d,
     digits: d.red.slice(0, 5),
     tail: null
@@ -306,13 +343,14 @@ async function fetchPL5(count = MAX_DRAWS) {
 }
 
 /** 7星彩：体彩 gameNo=04，result 前 6 位 + 尾位(0-14) */
-async function fetchQXC(count = MAX_DRAWS) {
+async function fetchQXC(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=04&provinceId=0&pageSize=${count}&isVerify=1&pageNo=1`
   const json = await requestJson(url, 'https://static.sporttery.cn/')
-  if (!json || json.errorCode !== '0' || !json.value || !Array.isArray(json.value.list)) {
+  const j = json as { errorCode?: string; value?: { list?: SportteryRow[] } }
+  if (!json || j.errorCode !== '0' || !j.value || !Array.isArray(j.value.list)) {
     throw new Error('7星彩接口返回结构异常')
   }
-  return parseSportteryRows(json.value.list).map((d) => ({
+  return parseSportteryRows(j.value.list).map((d) => ({
     ...d,
     digits: d.red.slice(0, 6),
     tail: d.red.length > 6 ? d.red[6] : null
@@ -320,13 +358,14 @@ async function fetchQXC(count = MAX_DRAWS) {
 }
 
 /** 大乐透：体彩官网 webapi.sporttery.cn */
-async function fetchDLT(count = MAX_DRAWS) {
+async function fetchDLT(count = MAX_DRAWS): Promise<Draw[]> {
   const url = `https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=85&provinceId=0&pageSize=${count}&isVerify=1&pageNo=1`
   const json = await requestJson(url, 'https://static.sporttery.cn/')
-  if (!json || json.errorCode !== '0' || !json.value || !Array.isArray(json.value.list)) {
+  const j = json as { errorCode?: string; value?: { list?: SportteryRow[] } }
+  if (!json || j.errorCode !== '0' || !j.value || !Array.isArray(j.value.list)) {
     throw new Error('大乐透接口返回结构异常')
   }
-  return parseSportteryRows(json.value.list).map((d) => {
+  return parseSportteryRows(j.value.list).map((d) => {
     const nums = d.red
     return {
       ...d,
@@ -338,7 +377,7 @@ async function fetchDLT(count = MAX_DRAWS) {
   })
 }
 
-const FETCHERS = {
+const FETCHERS: Record<string, (count?: number) => Promise<Draw[]>> = {
   ssq: fetchSSQ,
   dlt: fetchDLT,
   qlc: fetchQLC,
@@ -350,38 +389,46 @@ const FETCHERS = {
 }
 
 /** 本地缓存读写（localStorage） */
-function cacheKey(game) {
+function cacheKey(game: string): string {
   return CACHE_PREFIX + game
 }
 
-function readCache(game) {
+interface CacheShape {
+  game?: string
+  updatedAt?: string
+  source?: string
+  draws?: Draw[]
+  error?: string
+}
+
+function readCache(game: string): CacheShape | null {
   try {
     const raw = localStorage.getItem(cacheKey(game))
-    return raw ? JSON.parse(raw) : null
-  } catch (e) {
+    return raw ? (JSON.parse(raw) as CacheShape) : null
+  } catch {
     return null
   }
 }
 
-function writeCache(game, data) {
+function writeCache(game: string, data: CacheShape): void {
   try {
     localStorage.setItem(cacheKey(game), JSON.stringify(data))
-  } catch (e) {
+  } catch {
     /* 存储满/不可用时忽略 */
   }
 }
 
-function isFresh(cache) {
+function isFresh(cache: CacheShape | null): boolean {
   if (!cache || !Array.isArray(cache.draws) || cache.draws.length === 0) return false
   if (!cache.updatedAt) return false
   const age = Date.now() - new Date(cache.updatedAt).getTime()
   return age >= 0 && age < FRESH_HOURS * 3600 * 1000
 }
 
-async function ensureData(game, force) {
+async function ensureData(game: string, force: boolean): Promise<ApiDataResult> {
   const cache = readCache(game)
   if (!force && isFresh(cache)) {
-    return { source: 'cache', ...cache }
+    return { ok: true, source: 'cache', ...(cache as ApiDataResult) }
   }
   const fn = FETCHERS[game]
   if (!fn) throw new Error(`未知彩种: ${game}`)
@@ -390,12 +437,12 @@ async function ensureData(game, force) {
   try {
     const draws = await fn()
     const dataSource = _lastReqFromSnapshot ? 'snapshot' : 'fetch'
-    const data = { game, updatedAt: new Date().toISOString(), source: dataSource, draws }
+    const data: CacheShape = { game, updatedAt: new Date().toISOString(), source: dataSource, draws }
     writeCache(game, data)
-    return { source: dataSource, ...data }
+    return { ok: true, source: dataSource, ...(data as ApiDataResult) }
   } catch (e) {
     if (cache && Array.isArray(cache.draws) && cache.draws.length > 0) {
-      return { source: 'cache-stale', error: e.message, ...cache }
+      return { ok: true, source: 'cache-stale', error: (e as Error).message, ...(cache as ApiDataResult) }
     }
     throw e
   }
@@ -403,26 +450,26 @@ async function ensureData(game, force) {
 
 /** 与桌面 preload 相同的对外接口 */
 export const lotteryApi = {
-  async get(game) {
+  async get(game: string): Promise<ApiDataResult> {
     try {
       return { ok: true, ...(await ensureData(game, false)) }
     } catch (err) {
-      return { ok: false, error: err.message }
+      return { ok: false, error: (err as Error).message }
     }
   },
-  async refresh(game) {
+  async refresh(game: string): Promise<ApiDataResult> {
     try {
       return { ok: true, ...(await ensureData(game, true)) }
     } catch (err) {
-      return { ok: false, error: err.message }
+      return { ok: false, error: (err as Error).message }
     }
   },
-  status(game) {
+  status(game: string): { ok: boolean; updatedAt: string | null; count: number; missingWinners: number } {
     const cache = readCache(game)
     if (!cache || !Array.isArray(cache.draws)) {
       return { ok: true, updatedAt: null, count: 0, missingWinners: 0 }
     }
-    const missingWinners = cache.draws.filter((d) => !d.winners || d.winners.length === 0).length
+    const missingWinners = cache.draws.filter((d) => !d.winners || (d.winners as unknown[]).length === 0).length
     return {
       ok: true,
       updatedAt: cache.updatedAt || null,
@@ -435,7 +482,10 @@ export const lotteryApi = {
    * 流程：先查 cache 找到 → 返回；找不到时强制 refresh 再找；都没有则返回 null。
    * 找到的 draw 含完整开奖号码 (issue/date/red/blue/...)，供 FileCheck 单期核对。
    */
-  async lookupByIssue(game, issue) {
+  async lookupByIssue(
+    game: string,
+    issue: string | number
+  ): Promise<{ ok: boolean; source?: string; draw?: Draw | null; miss?: string; error?: string } | null> {
     if (!game || !issue) return null
     const want = String(issue).trim()
     // 1. cache 命中
@@ -452,7 +502,7 @@ export const lotteryApi = {
       if (hit) return { ok: true, source: r.source || 'fetch', draw: hit }
       return { ok: true, source: r.source || 'fetch', draw: null, miss: 'no such issue in ' + refreshMax + ' draws' }
     } catch (e) {
-      return { ok: false, error: e.message }
+      return { ok: false, error: (e as Error).message }
     }
   }
 }

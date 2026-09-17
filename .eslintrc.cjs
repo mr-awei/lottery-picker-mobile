@@ -20,6 +20,19 @@ module.exports = {
     GPUBufferUsage: 'readonly',
     GPUMapMode: 'readonly'
   },
+  overrides: [
+    {
+      // TypeScript 文件（渐进式迁移：核心 4 模块）
+      files: ['*.ts'],
+      parser: '@typescript-eslint/parser',
+      plugins: ['@typescript-eslint'],
+      rules: {
+        // 用 @typescript-eslint 版替换核心 no-unused-vars，兼容 type-only import / 接口等 TS 语法
+        'no-unused-vars': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }]
+      }
+    }
+  ],
   rules: {
     // 项目组件均为单个单词（AiPicker / MyPicks / PrizeMap 等），不强制多词组件名
     'vue/multi-word-component-names': 'off',
