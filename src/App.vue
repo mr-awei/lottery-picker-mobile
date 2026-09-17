@@ -323,7 +323,7 @@ function onAutoRefreshChange(e) {
 }
 
 onMounted(async () => {
-  // 手动隐藏启动屏（launchAutoHide=false）：双保险，不依赖数据加载
+  // 手动隐藏启动屏：Vue 挂载后立即隐藏，不等数据加载（数据后台加载，页面先渲染）
   const hideSplash = async () => {
     try {
       const { SplashScreen } = await import('@capacitor/splash-screen')
@@ -332,13 +332,12 @@ onMounted(async () => {
       /* 非原生环境或插件未加载时静默忽略 */
     }
   }
-  // 超时保底：3秒后强制隐藏，防止数据加载挂起导致永久黑屏
-  const splashTimer = setTimeout(hideSplash, 3000)
-  // 首屏数据到达后立即隐藏（正常路径）
-  loadGame(activeGame.value, false).finally(() => {
-    clearTimeout(splashTimer)
-    hideSplash()
-  })
+  // 立即隐藏（nextTick 确保 Vue 已渲染首帧），超时保底2秒
+  await nextTick()
+  hideSplash()
+  const splashTimer = setTimeout(hideSplash, 2000)
+  // 数据后台加载，不阻塞 splash 隐藏
+  loadGame(activeGame.value, false).finally(() => clearTimeout(splashTimer))
   ;(async () => {
     for (const g of GAME_KEYS) {
       if (g === activeGame.value || draws[g]) continue
