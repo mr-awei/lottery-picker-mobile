@@ -343,8 +343,10 @@ onMounted(async () => {
   // 立即隐藏（nextTick 确保 Vue 已渲染首帧），超时保底2秒
   await nextTick()
   hideSplash()
-  const boot = document.getElementById('lp-boot'); if (boot) boot.classList.add('hide')
+  const hideBoot = () => { const b = document.getElementById('lp-boot'); if (b) b.classList.add('hide') }
+  hideBoot()
   const splashTimer = setTimeout(hideSplash, 2000)
+  const bootTimer = setTimeout(hideBoot, 5000)
 
   // 启动加载：带自动重试（最多3次，指数退避 1s/2s/4s），首次安装网络不稳也能拿到数据
   const loadWithRetry = async (game, force, retries = 3) => {

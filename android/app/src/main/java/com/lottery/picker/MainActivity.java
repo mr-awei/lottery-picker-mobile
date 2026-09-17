@@ -16,6 +16,7 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        WebView.setWebContentsDebuggingEnabled(true);
         super.onCreate(savedInstanceState);
         handleShortcutIntent(getIntent());
         // 修正：Capacitor 在 WebView < 140 时把 systemBars inset 先清零再算安全区，
