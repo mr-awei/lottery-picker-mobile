@@ -77,8 +77,8 @@ describe('runBacktest', () => {
     expect(r.cumulative[9].issue).toBe(r.rows[0].issue)
   })
 
-  it('数据不足时返回 null', async () => {
-    const r = await runBacktest(ssqCfg, mockDraws.slice(0, 5), { periods: 10, perTicket: 1, methods: ['zone'] })
+  it('空数据时返回 null', async () => {
+    const r = await runBacktest(ssqCfg, [], { periods: 10, perTicket: 1, methods: ['zone'] })
     expect(r).toBeNull()
   })
 
