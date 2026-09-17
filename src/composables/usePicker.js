@@ -11,7 +11,7 @@ export function usePicker(props) {
   const result = ref(null)
   const generatedAt = ref('')
   const playType = ref('single')
-  const multiN = ref(3)
+  const multiN = ref(5)
   const duplexRed = ref(props.cfg.redCount + 1)
   const duplexBlue = ref(props.cfg.blueCount)
   const danN = ref(props.cfg.redCount - 1)

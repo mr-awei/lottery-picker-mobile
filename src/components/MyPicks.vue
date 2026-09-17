@@ -719,6 +719,7 @@ function savePick() {
   // 写入 IndexedDB + 派发 lp-picks-updated 事件，让 SavedPicksList 立即刷新
   set(STORE_PICKS, STORE_KEY(), picks.value).catch((e) => {
     console.error('保存自选号失败', e)
+    ElMessage.error('保存失败：本地存储异常，请重试')
   })
   window.dispatchEvent(new CustomEvent('lp-picks-updated', { detail: { key: props.cfg.key }}))
   clearSel()

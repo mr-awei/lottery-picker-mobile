@@ -5,7 +5,7 @@
         <span class="spl-title-text">我的自选票</span>
         <span class="spl-count">{{ picks.length }} 张<span v-if="picks.length" class="spl-hits"> · 历史 {{ totalHits }} 期中奖</span></span>
       </div>
-    <div v-if="picks.length" class="spl-tools">
+    <div class="spl-tools">
       <el-input v-model="kw" size="small" placeholder="搜索号码 / 标签 / 期号" clearable style="width: 170px" />
       <el-select v-model="filterGroup" size="small" style="width: 110px">
         <el-option label="全部分组" value="all" />

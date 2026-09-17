@@ -260,6 +260,7 @@ function renderChart() {
       }
     ]
   }, true)
+  requestAnimationFrame(() => chart && chart.resize())
 }
 
 function onResize() {
