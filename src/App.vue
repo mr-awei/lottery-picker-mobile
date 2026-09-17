@@ -140,6 +140,9 @@ const error = reactive(Object.fromEntries(GAME_KEYS.map((k) => [k, ''])))
 // 请求序号（1.8.3）：同一彩种并发/连续刷新时，后发请求的结果优先，
 // 丢弃过期响应，避免慢的旧请求覆盖新数据（竞态修复）
 const loadSeq = Object.fromEntries(GAME_KEYS.map((k) => [k, 0]))
+// per-game 取消器：同一彩种重发请求或 switchGame 切走时 abort 旧在途请求，
+// 已取消的响应直接丢弃、不更新状态（mobile-api 不支持 signal，此处作逻辑取消令牌）
+const gameAbort = Object.fromEntries(GAME_KEYS.map((k) => [k, null]))
 const refreshing = ref(false)
 const statusText = ref('')
 const statusWarn = ref(false)
@@ -203,14 +206,20 @@ async function loadGame(game, force) {
     error[game] = '运行环境异常：未检测到数据接口'
     return
   }
+  // 新请求优先：abort 该彩种上一次在途请求，旧响应不再更新状态
+  const prevCtrl = gameAbort[game]
+  if (prevCtrl) prevCtrl.abort()
+  const ctrl = new AbortController()
+  gameAbort[game] = ctrl
   const seq = ++loadSeq[game]
   loading[game] = true
   error[game] = ''
   const gname = GAME_NAMES[game] || game
+  const isStale = () => seq !== loadSeq[game] || ctrl.signal.aborted
   try {
     const r = force ? await lotteryApi.refresh(game) : await lotteryApi.get(game)
-    // 过期响应丢弃（期间又有更新的请求）
-    if (seq !== loadSeq[game]) return
+    // 过期响应或已取消：丢弃（期间又有更新的请求，或已被 switchGame 取消）
+    if (isStale()) return
     if (r && r.ok) {
       draws[game] = r
       const src = r.source === 'cache' ? '缓存' : r.source === 'cache-stale' ? '缓存(抓取失败)' : r.source === 'snapshot' ? '本地快照' : '官方接口'
@@ -222,7 +231,7 @@ async function loadGame(game, force) {
       statusWarn.value = true
     }
   } catch (e) {
-    if (seq !== loadSeq[game]) return
+    if (isStale()) return
     error[game] = e.message || String(e)
     statusText.value = `${gname} 数据加载失败`
     statusWarn.value = true
@@ -232,6 +241,9 @@ async function loadGame(game, force) {
 
 function switchGame(game) {
   if (activeGame.value === game) return
+  // 切走彩种：取消旧彩种在途请求，避免慢请求浪费带宽/更新已离开的页面
+  const prevCtrl = gameAbort[activeGame.value]
+  if (prevCtrl) prevCtrl.abort()
   activeGame.value = game
   updateNextDrawText()
   if (!draws[game]) loadGame(game, false)
@@ -309,8 +321,19 @@ function onAutoRefreshChange(e) {
   }
 }
 
+// 启动加载：首屏只发当前彩种（默认 ssq）一个请求，数据最快到达；
+// 当前彩种就绪后，后台 for...of 串行加载其余 7 个（不并发、不阻塞 UI），
+// 避免 8 路并发触发官方接口限流，且当前彩种数据不被其他慢请求阻塞
+async function bootstrapLoad() {
+  await loadGame(activeGame.value, false)
+  for (const g of GAME_KEYS) {
+    if (g === activeGame.value || draws[g]) continue
+    await loadGame(g, false)
+  }
+}
+
 onMounted(() => {
-  GAME_KEYS.forEach((g) => loadGame(g, false))
+  bootstrapLoad()
   updateNextDrawText()
   scrollActiveGameIntoView()
   gameSwitchEl.value?.addEventListener('scrollend', snapGameSwitch)
