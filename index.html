@@ -5,8 +5,35 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https: ws: http://localhost:5173 data: blob:; worker-src 'self' blob: data:; font-src 'self' data:">
   <title>彩票选号器</title>
+  <style>
+    #lp-boot {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: #ffffff; transition: opacity .3s ease;
+    }
+    #lp-boot.hide { opacity: 0; pointer-events: none; }
+    .lp-boot-balls { display: flex; gap: 8px; margin-bottom: 20px; }
+    .lp-boot-balls span {
+      width: 28px; height: 28px; border-radius: 50%;
+      animation: lp-bounce 1.2s ease-in-out infinite;
+    }
+    .lp-boot-balls span:nth-child(1) { background: #409eff; animation-delay: 0s; }
+    .lp-boot-balls span:nth-child(2) { background: #67c23a; animation-delay: .15s; }
+    .lp-boot-balls span:nth-child(3) { background: #e6a23c; animation-delay: .3s; }
+    @keyframes lp-bounce {
+      0%, 80%, 100% { transform: scale(.6); opacity: .5; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+    .lp-boot-title { font-size: 20px; font-weight: 600; color: #2a3350; margin-bottom: 8px; }
+    .lp-boot-sub { font-size: 13px; color: #909399; letter-spacing: 2px; }
+  </style>
 </head>
 <body>
+  <div id="lp-boot">
+    <div class="lp-boot-balls"><span></span><span></span><span></span></div>
+    <div class="lp-boot-title">彩票选号器</div>
+    <div class="lp-boot-sub">DAILY LOTTERY PICKER</div>
+  </div>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
