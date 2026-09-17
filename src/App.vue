@@ -321,19 +321,24 @@ function onAutoRefreshChange(e) {
   }
 }
 
-// 启动加载：首屏只发当前彩种（默认 ssq）一个请求，数据最快到达；
-// 当前彩种就绪后，后台 for...of 串行加载其余 7 个（不并发、不阻塞 UI），
-// 避免 8 路并发触发官方接口限流，且当前彩种数据不被其他慢请求阻塞
-async function bootstrapLoad() {
-  await loadGame(activeGame.value, false)
-  for (const g of GAME_KEYS) {
-    if (g === activeGame.value || draws[g]) continue
-    await loadGame(g, false)
+onMounted(async () => {
+  // 首屏当前彩种数据到达后再手动隐藏启动屏（launchAutoHide=false），减少白屏闪烁
+  const hideSplash = async () => {
+    try {
+      const { SplashScreen } = await import('@capacitor/splash-screen')
+      await SplashScreen.hide()
+    } catch (e) {
+      /* 非原生环境或插件未加载时静默忽略 */
+    }
   }
-}
-
-onMounted(() => {
-  bootstrapLoad()
+  // 先加载首屏彩种，数据到达立即隐藏启动屏；其余彩种在后台串行加载
+  loadGame(activeGame.value, false).finally(hideSplash)
+  ;(async () => {
+    for (const g of GAME_KEYS) {
+      if (g === activeGame.value || draws[g]) continue
+      await loadGame(g, false)
+    }
+  })()
   updateNextDrawText()
   scrollActiveGameIntoView()
   gameSwitchEl.value?.addEventListener('scrollend', snapGameSwitch)

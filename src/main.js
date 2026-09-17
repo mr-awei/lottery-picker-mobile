@@ -7,6 +7,10 @@ import App from './App.vue'
 import './assets/global.css'
 import { initTheme } from './utils/ui-state'
 import { migrateFromLocal, checkQuota } from './utils/db'
+import { installCrashReporter } from './utils/crash-report'
+
+// 崩溃捕获必须在 createApp 之前注册，确保能捕获启动期错误
+installCrashReporter()
 
 initTheme()
 

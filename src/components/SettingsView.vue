@@ -92,6 +92,21 @@
     </div>
 
     <div class="set-card">
+      <div class="set-group-title">崩溃日志</div>
+      <div class="set-row">
+        <div class="set-info">
+          <div class="set-label">查看 / 导出崩溃日志</div>
+          <div class="set-desc">本地捕获的前端错误（window.onerror / 未处理 Promise 拒绝），最多保留 50 条，仅存本机、不上传</div>
+        </div>
+        <div class="crash-actions">
+          <el-button size="small" round @click="openCrashDialog">查看</el-button>
+          <el-button size="small" round @click="onExportCrashLogs">导出</el-button>
+          <el-button size="small" round type="danger" plain @click="onClearCrashLogs">清空</el-button>
+        </div>
+      </div>
+    </div>
+
+    <div class="set-card">
       <div class="set-group-title">关于软件</div>
       <div class="about-box">
         <div class="about-name">彩票选号器</div>
@@ -144,16 +159,47 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 崩溃日志查看弹窗 -->
+    <el-dialog
+      v-model="crashDialogVisible"
+      title="崩溃日志（最近 50 条）"
+      width="92%"
+      class="crash-dialog"
+      align-center
+    >
+      <div class="crash-body">
+        <div v-if="crashLogs.length === 0" class="crash-empty dim">暂无崩溃记录</div>
+        <div v-else class="crash-list">
+          <div v-for="(log, i) in crashLogs" :key="i" class="crash-item">
+            <div class="crash-head">
+              <span class="crash-type">{{ log.type }}</span>
+              <span class="crash-time dim">{{ log.timestamp }}</span>
+            </div>
+            <div v-if="log.message" class="crash-line">{{ log.message }}</div>
+            <div v-if="log.source" class="crash-line dim">来源：{{ log.source }}:{{ log.lineno }}:{{ log.colno }}</div>
+            <div v-if="log.reason" class="crash-line">拒绝原因：{{ log.reason }}</div>
+            <pre v-if="log.stack" class="crash-stack">{{ log.stack }}</pre>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button size="small" @click="onExportCrashLogs">导出</el-button>
+        <el-button size="small" type="danger" plain @click="onClearCrashLogs">清空</el-button>
+        <el-button size="small" type="primary" @click="crashDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { GAME_CONFIG } from '../utils/game-config'
 import { theme, applyTheme } from '../utils/ui-state'
 import { APP_VERSION } from '../utils/version'
 import { isAccelEnabled, setAccelEnabled, getBackendLabel } from '../utils/gpu-accel'
+import { getCrashLogs, clearCrashLogs, exportCrashLogs } from '../utils/crash-report'
 
 const props = defineProps({
   game: { type: String, required: true }
@@ -269,6 +315,39 @@ const gpuAccel = ref(isAccelEnabled())
 const accelBackendLabel = ref('—')
 const accelBadgeClass = ref('badge-off')
 const accelBackendNote = ref('')
+
+// 崩溃日志查看/清空/导出（纯本地，不联网）
+const crashLogs = ref([])
+const crashDialogVisible = ref(false)
+
+function refreshCrashLogs() {
+  crashLogs.value = getCrashLogs()
+}
+
+function openCrashDialog() {
+  refreshCrashLogs()
+  crashDialogVisible.value = true
+}
+
+async function onClearCrashLogs() {
+  try {
+    await ElMessageBox.confirm('确定清空全部崩溃日志？此操作不可恢复。', '清空崩溃日志', {
+      confirmButtonText: '清空',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    clearCrashLogs()
+    refreshCrashLogs()
+    ElMessage.success('崩溃日志已清空')
+  } catch (e) {
+    /* 用户取消 */
+  }
+}
+
+function onExportCrashLogs() {
+  const n = exportCrashLogs()
+  ElMessage.success('已导出 ' + n + ' 条崩溃日志')
+}
 
 async function refreshAccelBackend() {
   if (!gpuAccel.value) {
@@ -529,5 +608,82 @@ function onViolentAttemptsChange(val) {
   font-size: 12px;
   color: var(--text-dim, #888);
   margin-right: auto;
+}
+
+/* 崩溃日志 */
+.crash-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.crash-dialog {
+  border-radius: var(--r-lg, 12px);
+  overflow: hidden;
+  border: 1px solid var(--border, rgba(120, 130, 150, 0.2));
+}
+
+.crash-body {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.crash-empty {
+  font-size: 13px;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.crash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.crash-item {
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: var(--card-inset);
+  padding: 10px 12px;
+}
+
+.crash-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.crash-type {
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff8a80;
+  background: rgba(255, 138, 128, 0.12);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.crash-time {
+  font-size: 11px;
+}
+
+.crash-line {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.crash-stack {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-dim, #888);
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 6px;
 }
 </style>
