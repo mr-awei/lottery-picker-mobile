@@ -3,7 +3,7 @@
     <div class="trend-toolbar">
       <div class="trend-toolbar-row">
         <div class="card-title">号码走势图（彩票店样式）</div>
-        <button class="tc-rotate-btn" type="button" @click="rotateLandscape" title="横屏查看（更宽更清晰）">
+        <button class="tc-rotate-btn" type="button" title="横屏查看（更宽更清晰）" @click="rotateLandscape">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M10 10v4M14 10v4M18 10v2"/></svg>
           <span>横屏</span>
         </button>
@@ -34,7 +34,7 @@
     </div>
 
     <div class="trend-scroll" :class="'cell-' + cellSize">
-      <table class="trend-table" v-if="cfg.direct">
+      <table v-if="cfg.direct" class="trend-table">
         <thead>
           <tr>
             <th class="col-issue">期号</th>
@@ -78,7 +78,7 @@
           </tr>
         </tbody>
       </table>
-      <table class="trend-table" v-else>
+      <table v-else class="trend-table">
         <thead>
           <tr>
             <th class="col-issue">期号</th>
@@ -130,7 +130,7 @@
         <button class="tc-landscape-close" type="button" @click="landscapeOpen = false">✕ 关闭</button>
       </div>
       <div class="tc-landscape-body cell-lg" @click.stop>
-        <table class="trend-table" v-if="cfg.direct">
+        <table v-if="cfg.direct" class="trend-table">
           <thead>
             <tr>
               <th class="col-issue">期号</th>
@@ -170,7 +170,7 @@
             </tr>
           </tbody>
         </table>
-        <table class="trend-table" v-else>
+        <table v-else class="trend-table">
           <thead>
             <tr>
               <th class="col-issue">期号</th>

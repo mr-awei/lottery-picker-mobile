@@ -40,7 +40,7 @@
           <div class="prize-detail">
             期号 {{ maxCountDraw.issue }} · {{ fmtDate(maxCountDraw.date) }} · 单注 ¥{{ fmtMoney(maxCountDraw.firstPrizePerBet) }}
           </div>
-          <div class="prize-detail" v-if="maxCountDraw.winners && maxCountDraw.winners.length">
+          <div v-if="maxCountDraw.winners && maxCountDraw.winners.length" class="prize-detail">
             中奖省市：{{ winnersText(maxCountDraw.winners) }}
           </div>
           <div v-else class="prize-detail dim">官方接口未提供中奖省市</div>

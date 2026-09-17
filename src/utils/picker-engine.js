@@ -304,7 +304,7 @@ export function scoreRed(cfg, red, s) {
     mirrorScore * 0.02 + sumTailScore * 0.03 + meanScore * 0.04 + fiboScore * 0.02 + headTailScore * 0.04 + clampScore * 0.03
   )
   return { zones, odds, sum, cons, hotIn, coldIn, bigs, primes, routes, span, tailPairs, reps, omitOk, ac,
-    neighborIn, goldenIn, mirrorPairs, sumTail, meanScore, fiboHits, headOk, tailOk, clampHits,
+    neighborIn, goldenIn, mirrorPairs, sumTail, fiboHits, headOk, tailOk, clampHits,
     zoneScore, oddScore, sumScore, consScore, hotScore, sizeScore, primeScore, routeScore, spanScore, tailScore, repeatScore, omitScore, acScore,
     neighborScore, goldenScore, mirrorScore, sumTailScore, meanScore, fiboScore, headTailScore, clampScore, total }
 }
@@ -454,6 +454,7 @@ function combosOf(arr, k) {
   if (k === 0) return [[]]
   const out = []
   const idx = Array.from({ length: k }, (_, i) => i)
+  // eslint-disable-next-line no-constant-condition -- 组合枚举，内部按边界 break
   while (true) {
     out.push(idx.map((i) => arr[i]))
     let p = k - 1
@@ -531,7 +532,7 @@ export function extractTickets(text, cfg) {
     addUnique(parseBody(m[2]))
   }
   // 策略 2：编号前缀 1) / 2. / 3、
-  for (const m of String(text).matchAll(/[ \t]*\d+[)\.、][ \t]*([^\n]+)/g)) {
+  for (const m of String(text).matchAll(/[ \t]*\d+[).、][ \t]*([^\n]+)/g)) {
     addUnique(parseBody(m[1]))
   }
   // 策略 3：逐行兜底 —— 抓回 OCR 漏字母 / 漏冒号 / 整行只剩数字的注
@@ -543,7 +544,7 @@ export function extractTickets(text, cfg) {
     if (/\b\d{4,}/.test(line)) continue  // 2023013 / 2023-02-07 / 100024 / 3.60
     // 已被策略 1 / 2 处理的行：避免重复解析
     if (/^[A-Za-z][\s:：.)\]、]/.test(line)) continue
-    if (/^\d+[)\.、]/.test(line)) continue
+    if (/^\d+[).、]/.test(line)) continue
     // 简单按 + 切 + 抽数字（与原 parseLine 等价；不处理"红区/蓝区"分段 —— 那是 FileCheck 组件自己用）
     const plusM = line.match(/^(.+?)\s*\+\s*(.+)$/)
     let redNums, blueNums
@@ -567,7 +568,7 @@ export function extractTickets(text, cfg) {
   // 此时从**非元信息**行里启发式抽号码：丢弃含"销售期/期号/日期/机号/操作员/序号/倍数/中国福利彩票/CHINA/双色球|单式|组合|红区|蓝区|彩票"这类关键词的整行（这些行的数字几乎都是元数据：日期、金额、流水号、序号等，混进号码池会编造成绩）。
   // 真实号码字符大概率漂在"裸数字行"里（OCR 直接吐出 "01 02 09 12 18 22 27+03"，或拆碎后不带任何元信息关键词）。
   if (out.length === 0) {
-    const META_RE = /(销售期|兑奖期|销售站|机号|操作员|序号|倍数|彩票|LOTTERY|CHINA|WELFARE|双色球|大乐透|七乐彩|快乐8|F3D|福彩3D|组合|^[ \t]*(单式|复式|胆拖|追加)[ \t]*$|红区|蓝区|期数|开奖日期|^[ \t]*[A-Za-z][):：\.]|\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}|\d{4,}|>\s*$|:\s*$|\.\.\.|^$|^\s*[A-Za-z]+\s*$)/i
+    const META_RE = /(销售期|兑奖期|销售站|机号|操作员|序号|倍数|彩票|LOTTERY|CHINA|WELFARE|双色球|大乐透|七乐彩|快乐8|F3D|福彩3D|组合|^[ \t]*(单式|复式|胆拖|追加)[ \t]*$|红区|蓝区|期数|开奖日期|^[ \t]*[A-Za-z][):：.]|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{4,}|>\s*$|:\s*$|\.\.\.|^$|^\s*[A-Za-z]+\s*$)/i
     const redPool = []
     const bluePool = []
     for (const rawLine of String(text).split(/\r?\n/)) {
@@ -911,7 +912,6 @@ export function createPickerEngine(cfg, methods) {
     // single（默认）
     const t = generateRed(s, pool, true, lockedRed)
     const blue = generateBlue(s, pool, lockedBlue)
-    const score = t.score || scoreRed(cfg, t.red, s)
     const ticket = { type: 'single', red: t.red, blue, append }
     const scored = scoreTicketPlay(cfg, draws, ticket, s)
     return { ticket, stats: s, ...scored }

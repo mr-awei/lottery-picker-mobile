@@ -14,7 +14,7 @@
         </div>
       </div>
       <div class="app-actions">
-        <span class="status-pill" v-if="statusText" :title="statusText">
+        <span v-if="statusText" class="status-pill" :title="statusText">
           <i class="dot" :class="{ warn: statusWarn }"></i>{{ statusText }}
         </span>
         <button class="theme-btn" :title="theme === 'dark' ? '切换到白天模式' : '切换到黑夜模式'" @click="toggleTheme">
@@ -34,7 +34,7 @@
 
     <!-- 彩种切换 (横向滚动胶囊) -->
     <div class="game-switch-row">
-      <div class="game-switch" ref="gameSwitchEl">
+      <div ref="gameSwitchEl" class="game-switch">
         <button
           v-for="g in GAME_LIST"
           :key="g.key"

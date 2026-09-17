@@ -11,7 +11,7 @@
       </div>
 
       <div class="fc-actions">
-        <button class="fc-action fc-action-primary" @click="actionSheet = true" :disabled="cameraBusy">
+        <button class="fc-action fc-action-primary" :disabled="cameraBusy" @click="actionSheet = true">
           <span v-if="cameraBusy" class="fc-action-inner">
             <svg class="fc-spin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="32 12" stroke-linecap="round" /></svg>
             <span>处理中…</span>
@@ -44,7 +44,7 @@
         <span class="fc-section-title">识别预览</span>
         <div class="fc-section-tools">
           <el-button size="small" @click="clearImage">移除图片</el-button>
-          <el-button size="small" type="primary" @click="retryOcr" :disabled="ocrRunning">重新识别</el-button>
+          <el-button size="small" type="primary" :disabled="ocrRunning" @click="retryOcr">重新识别</el-button>
         </div>
       </header>
       <div class="fc-preview-row">
@@ -94,7 +94,7 @@
         </button>
       </div>
       <template #footer>
-        <el-button @click="actionSheet = false" round>取消</el-button>
+        <el-button round @click="actionSheet = false">取消</el-button>
       </template>
     </el-dialog>
 
@@ -289,7 +289,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2, fmtDate } from '../utils/game-config'
 import { checkTicketHistory, isBigWin, bigWinFlow, smallWinNote, fmtBonus } from '../utils/prize-check'
@@ -349,7 +349,6 @@ const ocrStats = ref({ totalLines: 0, candidateLines: 0 })
 // v1.9.6：精确当期核对结果
 const lookupState = ref({ gameKey: null, issue: null, hit: null, miss: null, nonCurrent: false, loading: false, error: '' })
 // v1.9.6：识别彩种与当前 Tab 不一致时的目标 cfg
-const suggestedCfg = computed(() => ocrMeta.value && ocrMeta.value.gameKey ? GAME_CONFIG[ocrMeta.value.gameKey] : null)
 const isWrongGame = computed(() => !!ocrMeta.value.gameKey && ocrMeta.value.gameKey !== props.cfg.key)
 // v1.9.6：漏注警告（在 result 区上方显示）
 const partialParseWarn = computed(() => {
@@ -358,7 +357,6 @@ const partialParseWarn = computed(() => {
   return c > p && p > 0
 })
 
-const latest = computed(() => (props.draws && props.draws.length ? props.draws[0] : null))
 const winCount = computed(() => rows.value.filter((r) => r.prize && r.prize.level > 0).length)
 const totalBonus = computed(() => rows.value.reduce((a, r) => a + (r.prize && r.prize.bonus || 0), 0))
 
@@ -434,7 +432,7 @@ function triggerFileInput() {
 
 /** 等待上一次 triggerFileInput 的结果。30s 兜底超时。 */
 function waitPickedImage(timeoutMs = 30000) {
-  const input = _ensureInput()
+  _ensureInput()
   return new Promise((resolve, reject) => {
     if (_pickSlot && !_pickSlot.settled) return reject(new Error('选图进行中'))
     _pickSlot = {
@@ -669,51 +667,6 @@ function clearImage() {
   ocrStatusText.value = '正在识别…'
   pasteText.value = ''
   clearRows()
-}
-
-/** 解析一行号码（与原 FileCheck 保持一致）
- * 智能识别（1.8.4）：兼容两种格式
- *  - 票面格式："红区 06 11 03 17 21 32 - 蓝区 16"（OCR 真实票面常带"红区/蓝区"中文标识）
- *  - 纯号码格式："01 02 03 04 05 06 16"（用户手动粘贴/复制）
- */
-function parseLine(line, cfg) {
-  if (cfg.playMode === 'direct') {
-    const nums = (line.match(/\d/g) || []).map(Number)
-    const nPos = cfg.digits ? cfg.digits.length : 0
-    const need = nPos + (cfg.tail ? 1 : 0)
-    if (nums.length < need) return null
-    const digits = nums.slice(0, nPos)
-    const tail = cfg.tail ? nums[nPos] : null
-    return { digits, tail }
-  }
-  // 段内数字抽取：过滤 >2 位长数字（身份证/订单号/期号）
-  const extractNums = (s, max) => (s.match(/\d+/g) || [])
-    .filter((x) => x.length <= 2)
-    .map(Number)
-    .filter((n) => Number.isInteger(n) && n >= 1 && n <= max)
-
-  // 智能识别：含"红区/蓝区"中文标识时按段抽取
-  if (/红区/.test(line) || /蓝区/.test(line)) {
-    const redM = line.match(/红区\s*[:：\-]?\s*([^\n蓝]*?)(?=\s*蓝区|$|\s*$)/)
-    const blueM = line.match(/蓝区\s*[:：\-]?\s*([^\n]*?)\s*$/)
-    const redNums = redM ? extractNums(redM[1], cfg.redMax) : []
-    const blueNums = blueM ? extractNums(blueM[1], cfg.blueMax) : []
-    if (redNums.length >= cfg.redCount && (cfg.blueCount === 0 || blueNums.length >= cfg.blueCount)) {
-      return {
-        red: redNums.slice(0, cfg.redCount).sort((a, b) => a - b),
-        blue: blueNums.slice(0, cfg.blueCount).sort((a, b) => a - b)
-      }
-    }
-    // 段式识别失败 → 回退到全行抽取（兼容 OCR 漏标点）
-  }
-
-  const nums = extractNums(line, Math.max(cfg.redMax, cfg.blueMax))
-  const need = cfg.redCount + cfg.blueCount
-  if (nums.length < need) return null
-  const red = nums.slice(0, cfg.redCount)
-  const blue = nums.slice(cfg.redCount, cfg.redCount + cfg.blueCount)
-  if (red.some((n) => n > cfg.redMax) || blue.some((n) => n > cfg.blueMax)) return null
-  return { red: [...new Set(red)].sort((a, b) => a - b), blue: [...new Set(blue)].sort((a, b) => a - b) }
 }
 
 function buildFlowData(prize, text) {

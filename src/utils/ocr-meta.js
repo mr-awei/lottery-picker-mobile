@@ -156,7 +156,7 @@ export function countOcrLines(text) {
       continue
     }
     // 编号前缀
-    if (/^\d+[)\.、]/.test(line)) {
+    if (/^\d+[).、]/.test(line)) {
       cnt++
       continue
     }

@@ -247,8 +247,6 @@ function runSim() {
   const n = Math.min(periods.value, total)
   const rows = []
   let cum = 0
-  let wins = 0
-  let hits = 0
   for (let i = 0; i < n; i++) {
     const draw = props.draws[i]
     const multiple = multipleAt(i)
@@ -257,8 +255,6 @@ function runSim() {
     const res = checkTicket(props.cfg, t, draw)
     const bonus = res.bonus || 0
     cum += bonus - cost
-    if (bonus > 0) wins++
-    if (res.level > 0) hits++
     rows.push({
       issue: draw.issue,
       drawRed: draw.red || [],

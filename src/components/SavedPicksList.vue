@@ -23,7 +23,7 @@
     <div v-else class="spl-list">
       <div v-for="p in picks" :key="p.id" class="spl-row" :class="{ won: p.prize && p.prize.level > 0, pending: p.status === 'pending' }">
         <div class="spl-main">
-          <div class="spl-balls" v-if="p.ticket.type === 'single'">
+          <div v-if="p.ticket.type === 'single'" class="spl-balls">
             <template v-if="p.ticket.digits">
               <el-tag v-if="p.ticket.zx && p.ticket.zx !== 'direct'" size="small" type="warning" effect="plain" style="margin-right: 6px">{{ zxLabel(p.ticket.zx) }}</el-tag>
               <span v-for="(dv, di) in p.ticket.digits" :key="'d' + di" class="ball ball-red">{{ dv }}</span>
@@ -85,7 +85,7 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="spl-ic-sm"><path d="M12 2l2.6 5.6 6.1.8-4.5 4.2 1.1 6-5.3-2.9-5.3 2.9 1.1-6L3.3 8.4l6.1-.8z" /></svg>
               评分 {{ p.score ? p.score.total : '—' }}
             </span>
-            <span class="spl-amount" v-if="p.combos">{{ p.combos }} 注 · ¥{{ p.amount }}<span v-if="p.ticket && p.ticket.append">（追加）</span></span>
+            <span v-if="p.combos" class="spl-amount">{{ p.combos }} 注 · ¥{{ p.amount }}<span v-if="p.ticket && p.ticket.append">（追加）</span></span>
           </div>
           <div class="spl-result">
             <template v-if="p.status === 'pending'">

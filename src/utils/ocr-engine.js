@@ -83,7 +83,7 @@ function loadToCanvas(dataUrl) {
       ctx.drawImage(img, 0, 0)
       resolve({ canvas, ctx, width: img.naturalWidth, height: img.naturalHeight })
     }
-    img.onerror = (e) => reject(new Error('图片加载失败'))
+    img.onerror = () => reject(new Error('图片加载失败'))
     img.src = dataUrl
   })
 }

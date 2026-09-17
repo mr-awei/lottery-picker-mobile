@@ -2,7 +2,7 @@
   <div>
     <div class="dc-head">
       <div class="card-title">号码分布图（近 {{ draws.length }} 期）</div>
-      <button class="dc-rotate-btn" type="button" @click="rotateLandscape" title="横屏查看（更宽更清晰）">
+      <button class="dc-rotate-btn" type="button" title="横屏查看（更宽更清晰）" @click="rotateLandscape">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M10 10v4M14 10v4M18 10v2"/></svg>
         <span>横屏查看</span>
       </button>
@@ -217,7 +217,6 @@ function buildDirectRatioOption(s) {
   const xLabels = Array.from({ length: s.rowSize }, (_, i) => String(i))
   const posNames = props.cfg.digits.map((d) => d.label)
   if (props.cfg.tail) posNames.push('尾位')
-  const posLabels = s.freq.map((_, p) => posNames[p] || `第${p + 1}位`)
   const colors = [t.red, t.blue, t.green, t.orange, t.purple, t.teal, t.gold, t.pink, t.cyan, t.warm]
   const posSeries = s.freq.map((row, p) => ({
     name: posNames[p] || `第${p + 1}位`,
@@ -394,7 +393,7 @@ function buildMissOption(s) {
   }
 }
 
-function buildRatioOption(s) {
+function buildRatioOption(_s) {
   const t = chartTheme()
   let odd = 0,
     even = 0,

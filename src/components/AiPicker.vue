@@ -60,10 +60,10 @@
         <span v-if="liveAmount > 0" class="amount-pill">共 {{ liveCombos }} 注 · ¥{{ liveAmount }}</span>
       </div>
 
-      <div class="ctrl-row lock-row" v-if="cfg.playMode === 'direct'">
+      <div v-if="cfg.playMode === 'direct'" class="ctrl-row lock-row">
         <span class="ctrl-label">定位选号（每位可多选 = 定位复式，不选由 AI 随机）</span>
         <div class="lock-pools">
-          <div class="lock-pool" v-for="(p, pi) in cfg.digits" :key="'dp' + pi">
+          <div v-for="(p, pi) in cfg.digits" :key="'dp' + pi" class="lock-pool">
             <span class="lock-pool-label">{{ p.label }}</span>
             <span
               v-for="n in 10"
@@ -73,7 +73,7 @@
               @click="togglePos(pi, n - 1)"
             >{{ n - 1 }}</span>
           </div>
-          <div class="lock-pool" v-if="cfg.tail">
+          <div v-if="cfg.tail" class="lock-pool">
             <span class="lock-pool-label">尾位</span>
             <span
               v-for="n in 10"
@@ -86,7 +86,7 @@
         </div>
         <el-button v-if="hasPosSel" size="small" text @click="clearPos">清空</el-button>
       </div>
-      <div class="ctrl-row" v-else>
+      <div v-else class="ctrl-row">
         <span class="ctrl-label">自定义号码</span>
         <div class="lock-pools">
           <div class="lock-pool">
@@ -112,7 +112,7 @@
         </div>
         <el-button v-if="lockedRed.length || lockedBlue.length" size="small" text @click="clearLocked">清空</el-button>
       </div>
-      <div class="ctrl-row" v-if="lockedRed.length || lockedBlue.length">
+      <div v-if="lockedRed.length || lockedBlue.length" class="ctrl-row">
         <span class="dim" style="font-size: 12px">{{ lockHint }}。结果中带金色描边的号码即您自定义的必选号。</span>
       </div>
 
@@ -155,7 +155,7 @@
         <span class="dim" style="font-size: 12px">暴力模式在 AI 选号界面直接设定，跑满该次数取最高分（与设置页同步）</span>
       </div>
 
-      <div class="ctrl-row" v-if="cfg.zhuijia">
+      <div v-if="cfg.zhuijia" class="ctrl-row">
         <el-checkbox v-model="append">大乐透追加投注（每注 +1 元，一/二等奖奖金 ×1.8）</el-checkbox>
       </div>
 
@@ -165,7 +165,7 @@
         <span class="dim" style="font-size: 12px">官方玩法：多倍投注，金额与中奖奖金同倍</span>
       </div>
 
-      <div class="ctrl-row" v-if="cfg.blueCount > 1 && playType === 'danTuo'">
+      <div v-if="cfg.blueCount > 1 && playType === 'danTuo'" class="ctrl-row">
         <span class="ctrl-label">后区胆拖</span>
         <span class="dim" style="font-size: 12px; margin-right: 6px">后区胆码</span>
         <el-input-number v-model="blueDanN" :min="0" :max="cfg.blueCount - 1" size="small" style="width: 90px" />
@@ -201,11 +201,11 @@
     <div v-else-if="rolling" class="ticket roll-ticket">
       <div class="ticket-head">
         <el-tag size="small" type="warning" style="margin-right: 12px">摇奖中…</el-tag>
-        <span class="ticket-balls" v-if="cfg.playMode !== 'direct'">
+        <span v-if="cfg.playMode !== 'direct'" class="ticket-balls">
           <span v-for="n in rollBalls.red" :key="'r' + n" class="ball ball-red rolling">{{ pad2(n) }}</span>
           <span v-for="(b, bi) in rollBalls.blue" :key="'b' + bi" class="ball ball-blue rolling">{{ pad2(b) }}</span>
         </span>
-        <span class="ticket-balls" v-else>
+        <span v-else class="ticket-balls">
           <span v-for="(d, di) in rollBalls.digits" :key="'rd' + di" class="ball ball-red rolling">{{ d }}</span>
           <span v-if="rollBalls.tail != null" class="ball ball-blue rolling">{{ rollBalls.tail }}</span>
         </span>
@@ -228,20 +228,20 @@
         <div class="ticket-head">
           <el-tag size="small" type="danger" style="margin-right: 12px">{{ playLabel }}</el-tag>
           <template v-if="cfg.playMode === 'direct'">
-            <span class="ticket-balls" v-if="result.ticket.type === 'single'">
+            <span v-if="result.ticket.type === 'single'" class="ticket-balls">
               <span v-for="(d, di) in result.ticket.digits" :key="'d' + di" class="ball ball-red">{{ d }}</span>
               <span v-if="result.ticket.tail != null" class="ball ball-blue">{{ result.ticket.tail }}</span>
             </span>
-            <span class="ticket-balls" v-else-if="result.ticket.type === 'duplex'">
-              <span class="multi-mini" v-for="(arr, pi) in result.ticket.pos" :key="'pos' + pi">
+            <span v-else-if="result.ticket.type === 'duplex'" class="ticket-balls">
+              <span v-for="(arr, pi) in result.ticket.pos" :key="'pos' + pi" class="multi-mini">
                 <span v-for="v in arr" :key="'pv' + v" class="ball ball-red" :class="{ 'ball-locked': isPosSel(pi, v) }" style="width: 22px; height: 22px; font-size: 10px">{{ v }}</span>
               </span>
               <span v-if="result.ticket.tail && result.ticket.tail.length" class="multi-mini">
                 <span v-for="v in result.ticket.tail" :key="'tv' + v" class="ball ball-blue" :class="{ 'ball-locked': tailSel.includes(v) }" style="width: 22px; height: 22px; font-size: 10px">{{ v }}</span>
               </span>
             </span>
-            <span class="ticket-balls" v-else>
-              <span class="multi-mini" v-for="(t, i) in result.ticket.tickets" :key="i">
+            <span v-else class="ticket-balls">
+              <span v-for="(t, i) in result.ticket.tickets" :key="i" class="multi-mini">
                 <span v-for="(d, di) in t.digits" :key="'d' + di" class="ball ball-red" style="width: 22px; height: 22px; font-size: 10px">{{ d }}</span>
                 <span v-if="t.tail != null" class="ball ball-blue" style="width: 22px; height: 22px; font-size: 10px">{{ t.tail }}</span>
               </span>
@@ -310,7 +310,7 @@
             </template>
           </div>
           <div class="score-bars">
-            <div class="score-bar" v-for="item in scoreItems(firstLine.score)" :key="item.label">
+            <div v-for="item in scoreItems(firstLine.score)" :key="item.label" class="score-bar">
               <span class="score-label">{{ item.label }}</span>
               <span class="score-track">
                 <span class="score-fill" :style="{ width: item.value + '%' }"></span>
@@ -378,10 +378,8 @@ const multiple = ref(1)
 const targetScore = ref(70)
 const searching = ref(false)
 const searchingCount = ref(0)
-const MAX_ATTEMPTS = 20000
 // AI 选号设置（设置页写入同一 localStorage key）：一直选上限次数 / 暴力模式开关与次数
 const maxAttempts = ref(Number(localStorage.getItem('lp-ai-max-attempts')) || 20000)
-const violentEnabled = ref(localStorage.getItem('lp-ai-violent') === 'on')
 const violentAttempts = ref(Number(localStorage.getItem('lp-ai-violent-attempts')) || 100000)
 const isViolent = ref(false)
 const freq = reactive({})

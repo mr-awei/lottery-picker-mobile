@@ -11,7 +11,7 @@
     <div class="dim" style="margin-bottom: 14px; font-size: 12px; line-height: 1.8">
       AI 选号默认启用老彩民使用频率最高的 6 种策略（区间均衡、奇偶均衡、大小比、冷热倾向、和值区间、重号邻号），可在 AI 选号页自由勾选：全不勾 = 真随机，全勾 = 21 维综合评分择优。
     </div>
-    <div class="kb-item" v-for="m in methods" :key="m.name">
+    <div v-for="m in methods" :key="m.name" class="kb-item">
       <div class="kb-head">
         <span class="kb-name">{{ m.name }}</span>
         <el-tag size="small" :type="m.tag" style="margin-left: 10px">{{ m.tagText }}</el-tag>

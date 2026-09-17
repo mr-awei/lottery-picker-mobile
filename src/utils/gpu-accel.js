@@ -24,18 +24,18 @@ function readAccelOn() {
     const legacy = localStorage.getItem(ACCEL_KEY_LEGACY)
     if (legacy === 'on') { localStorage.setItem(ACCEL_KEY, 'on'); return true }
     if (legacy === 'off') { localStorage.setItem(ACCEL_KEY, 'off'); return false }
-  } catch (e) {}
+  } catch (e) { /* localStorage 不可用（隐私模式等）时按默认关闭处理 */ }
   return false
 }
 
 function writeAccelOn(on) {
-  try { localStorage.setItem(ACCEL_KEY, on ? 'on' : 'off') } catch (e) {}
+  try { localStorage.setItem(ACCEL_KEY, on ? 'on' : 'off') } catch (e) { /* 忽略写入失败 */ }
 }
 
 export function isAccelEnabled() { return readAccelOn() }
 export function setAccelEnabled(on) {
   writeAccelOn(on)
-  try { window.dispatchEvent(new CustomEvent('lp-accel-change', { detail: { enabled: on } })) } catch (e) {}
+  try { window.dispatchEvent(new CustomEvent('lp-accel-change', { detail: { enabled: on } })) } catch (e) { /* 事件派发失败不影响开关 */ }
 }
 
 let _gpuProbed = null // 'webgpu' | 'none'
@@ -438,7 +438,7 @@ async function runWorkerParallel(cfg, draws, play, methods, target, cap, violent
   const checkStop = setInterval(() => {
     if (stopCheck && stopCheck()) {
       workerRefs.forEach((r) => {
-        if (r.worker) try { r.worker.postMessage({ type: 'cancel' }) } catch (e) {}
+        if (r.worker) try { r.worker.postMessage({ type: 'cancel' }) } catch (e) { /* worker 可能已退出 */ }
       })
     }
   }, 80)
@@ -446,7 +446,7 @@ async function runWorkerParallel(cfg, draws, play, methods, target, cap, violent
   try {
     const tasks = ranges.map(([from, to], idx) => runWorkerRange(
       cfg, draws, play, methods, target, from, to, violent,
-      (absCount, kCount, kTotal, kFrom, kTo) => {
+      (absCount) => {
         if (onProgress) onProgress(absCount, { totalRuns: cap })
       },
       workerRefs[idx]
@@ -461,7 +461,7 @@ async function runWorkerParallel(cfg, draws, play, methods, target, cap, violent
   } finally {
     clearInterval(checkStop)
     workerRefs.forEach((r) => {
-      if (r.worker) try { r.worker.terminate() } catch (e) {}
+      if (r.worker) try { r.worker.terminate() } catch (e) { /* 忽略已退出 worker */ }
     })
   }
 }

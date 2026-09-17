@@ -196,7 +196,7 @@ function cellBg(v, max) {
   return { background: `rgba(217, 43, 63, ${a.toFixed(2)})` }
 }
 
-function cellClick(n) {
+function cellClick(_n) {
   // 轻提示，不做复杂跳转
 }
 

@@ -7,8 +7,8 @@
 
 import {
   createPickerEngine,
-  createDirectPickerEngine,
   computeStats,
+  computeDirectStats,
   generateDirect
 } from './picker-engine'
 
@@ -75,7 +75,6 @@ function runLotto(cfg, draws, play, methods, target, from, to, violent) {
 
 // 直位数字型（福彩3D/排列3/排列5/7星彩）—— 区间版
 function runDirect(cfg, draws, play, target, from, to, violent) {
-  const engine = createDirectPickerEngine(cfg)
   const n = play && play.type === 'multi' ? Math.max(1, Math.min(20, play.n || 3)) : 1
   // 性能修复（1.8.3）：stats 只算一次，generateDirect 复用，避免每轮全量统计
   const st = computeDirectStats(cfg, draws)

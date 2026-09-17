@@ -29,7 +29,7 @@
           <div class="ov-label">最新一期销量</div>
           <div v-if="latest.sales != null" class="ov-value">{{ '¥' + fmtMoney(latest.sales) }}</div>
           <div v-else class="ov-value dim">—</div>
-          <div class="ov-detail dim" v-if="periodAvgSales">区间日均销量 ¥{{ fmtMoney(periodAvgSales) }}</div>
+          <div v-if="periodAvgSales" class="ov-detail dim">区间日均销量 ¥{{ fmtMoney(periodAvgSales) }}</div>
         </div>
         <div class="ov-card">
           <div class="ov-label">区间最高单期销量</div>
@@ -336,7 +336,6 @@ onMounted(async () => {
   await nextTick()
   render()
   cancelTheme = onThemeChange(() => {
-    const t = chartTheme()
     if (mainChart) {
       mainChart.dispose()
       mainChart = null

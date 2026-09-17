@@ -51,7 +51,7 @@
         </div>
         <el-switch v-model="violentMode" @change="onViolentModeChange" />
       </div>
-      <div class="set-row" v-if="violentMode">
+      <div v-if="violentMode" class="set-row">
         <div class="set-info">
           <div class="set-label">暴力模式次数</div>
           <div class="set-desc">建议 10 万 / 100 万，次数越多耗时越长，期间可随时切走或关闭</div>
@@ -65,7 +65,7 @@
         </div>
         <el-switch v-model="gpuAccel" @change="onGpuAccelChange" />
       </div>
-      <div class="set-row" v-if="gpuAccel">
+      <div v-if="gpuAccel" class="set-row">
         <div class="set-info">
           <div class="set-label">当前加速后端</div>
           <div class="set-desc">{{ accelBackendNote }}</div>
@@ -151,7 +151,7 @@ import { ElMessage } from 'element-plus'
 import { GAME_CONFIG } from '../utils/game-config'
 import { theme, applyTheme } from '../utils/ui-state'
 import { APP_VERSION, CHANGELOG } from '../utils/version'
-import { isAccelEnabled, setAccelEnabled, getBackendLabel, detectBackend } from '../utils/gpu-accel'
+import { isAccelEnabled, setAccelEnabled, getBackendLabel } from '../utils/gpu-accel'
 
 const props = defineProps({
   game: { type: String, required: true }

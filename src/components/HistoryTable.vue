@@ -30,7 +30,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { fmtDate, fmtMoney, pad2 } from '../utils/game-config'
+import { pad2 } from '../utils/game-config'
 
 const props = defineProps({
   draws: { type: Array, required: true },

@@ -157,7 +157,7 @@
                 <span v-if="liveInfo.amount > 0" class="amount-pill">共 {{ liveInfo.combos }} 注 · ¥{{ liveInfo.amount }}</span>
               </div>
               <div v-if="liveInfo.items.length" class="score-bars">
-                <div class="score-bar" v-for="item in liveInfo.items" :key="item.label">
+                <div v-for="item in liveInfo.items" :key="item.label" class="score-bar">
                   <span class="score-label">{{ item.label }}</span>
                   <span class="score-track"><span class="score-fill" :style="{ width: item.value + '%' }"></span></span>
                   <span class="score-num">{{ Math.round(item.value) }}</span>
@@ -165,7 +165,7 @@
               </div>
             </div>
           </template>
-          <template v-else class="dim">等待选号评分…</template>
+          <span v-else class="dim">等待选号评分…</span>
         </span>
       </div>
     </div>
@@ -187,7 +187,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
 import { scoreTicketPlay, calcPlay, createPickerEngine, calcDirectPlay, computeDirectStats, expandDirectTicket, scoreDigits, scoreItemsFor } from '../utils/picker-engine'
@@ -223,8 +223,6 @@ const draft = ref([])
 const picks = ref([])
 /** 保存按钮冷却标记——挡双击/快速连点（600ms 内再点击直接 return） */
 const saving = ref(false)
-const flowVisible = ref(false)
-const flowData = ref(null)
 
 const STORE_KEY = () => 'lottery-picker-mypicks-' + props.cfg.key
 

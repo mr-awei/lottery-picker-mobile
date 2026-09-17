@@ -76,15 +76,15 @@
           <div class="sum-label">全额投注金额</div>
           <div class="sum-value">¥{{ fullAmount }}</div>
         </div>
-        <div class="sum-card" v-if="shrinkEnabled && shrunk.length">
+        <div v-if="shrinkEnabled && shrunk.length" class="sum-card">
           <div class="sum-label">缩水后注数</div>
           <div class="sum-value sum-accent">{{ shrunk.length }}</div>
         </div>
-        <div class="sum-card" v-if="shrinkEnabled && shrunk.length">
+        <div v-if="shrinkEnabled && shrunk.length" class="sum-card">
           <div class="sum-label">缩水后金额</div>
           <div class="sum-value sum-accent">¥{{ shrunkAmount }}</div>
         </div>
-        <div class="sum-card" v-if="shrinkEnabled && shrunk.length">
+        <div v-if="shrinkEnabled && shrunk.length" class="sum-card">
           <div class="sum-label">节省</div>
           <div class="sum-value sum-save">¥{{ fullAmount - shrunkAmount }}（{{ savePct }}%）</div>
         </div>
@@ -132,7 +132,7 @@
             <span v-for="n in line.red" :key="'r' + n" class="ball ball-red ball-sm">{{ pad2(n) }}</span>
             <span v-for="(b, i) in line.blue" :key="'b' + i" class="ball ball-blue ball-sm">{{ pad2(b) }}</span>
           </template>
-          <span class="line-score" v-if="line.score != null">评分 {{ Math.round(line.score) }}</span>
+          <span v-if="line.score != null" class="line-score">评分 {{ Math.round(line.score) }}</span>
         </div>
       </div>
       <div v-if="saveList.length > shownLines.length" class="dim" style="font-size: 12px; margin-top: 6px">
@@ -146,8 +146,8 @@
 import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { pad2 } from '../utils/game-config'
-import { expandTicket, calcPlay, scoreTicketPlay, computeDirectStats, computeStats, scoreDigits } from '../utils/picker-engine'
-import { checkTicketHistory, checkTicketHistoryMulti, isBigWin, bigWinFlow, fmtBonus } from '../utils/prize-check'
+import { expandTicket, scoreTicketPlay, computeDirectStats, computeStats, scoreDigits } from '../utils/picker-engine'
+import { checkTicketHistory, checkTicketHistoryMulti } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
 
 const props = defineProps({
@@ -253,7 +253,6 @@ function scoreLine(line, st) {
 function doExpand() {
   if (!selectionValid.value) return
   const ticket = currentTicket()
-  const calc = calcPlay(props.cfg, ticket)
   let lines = expandTicket(props.cfg, ticket)
   if (!lines.length) {
     ElMessage.warning('无法展开：请检查复式选择是否合法')
@@ -287,7 +286,6 @@ const saving = ref(false)
 
 const saveList = computed(() => {
   if (!shrinkEnabled.value) return scored.value
-  const list = []
   if (shrinkMode.value === 'topN') {
     return scored.value.slice(0, Math.min(topN.value, scored.value.length))
   }
@@ -364,7 +362,7 @@ function saveToPicks() {
     const multi = pick.hits
     pick.hitCount = multi ? multi.hitCount : 0
     pick.totalBonus = multi ? multi.totalBonus : 0
-  } catch (e) {}
+  } catch (e) { /* 历史核对失败不阻断拆分保存 */ }
   // 数据去重：拆分结果指纹（多注内部排序后整体比对）落入最近 5 条则跳过重复保存
   if (isRecentDuplicate(picks, pick.ticket)) {
     ElMessage.info('已保存过相同的拆票结果，跳过重复保存')
