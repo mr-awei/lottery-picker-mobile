@@ -87,7 +87,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import LotteryBoard from './components/LotteryBoard.vue'
 import { theme, toggleTheme } from './utils/ui-state'
 import { lotteryApi } from './utils/mobile-api'
@@ -240,6 +240,11 @@ async function loadGame(game, force) {
   loading[game] = false
 }
 
+// IndexedDB 迁移完成后重新加载当前彩种（首次安装缓存刚迁移完）
+function onDbReady() {
+  if (!draws[activeGame.value]) loadGame(activeGame.value, false)
+}
+
 function switchGame(game) {
   if (activeGame.value === game) return
   // 切走彩种：取消旧彩种在途请求，避免慢请求浪费带宽/更新已离开的页面
@@ -336,20 +341,38 @@ onMounted(async () => {
   await nextTick()
   hideSplash()
   const splashTimer = setTimeout(hideSplash, 2000)
-  // 数据后台加载，不阻塞 splash 隐藏
-  loadGame(activeGame.value, false).finally(() => clearTimeout(splashTimer))
+
+  // 启动加载：带自动重试（最多3次，指数退避 1s/2s/4s），首次安装网络不稳也能拿到数据
+  const loadWithRetry = async (game, force, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+      await loadGame(game, force)
+      if (draws[game]) return
+      if (i < retries - 1) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)))
+    }
+  }
+  loadWithRetry(activeGame.value, false).finally(() => clearTimeout(splashTimer))
+  // 其余彩种后台串行加载
   ;(async () => {
     for (const g of GAME_KEYS) {
       if (g === activeGame.value || draws[g]) continue
       await loadGame(g, false)
     }
   })()
+
+  // IndexedDB 迁移完成后（main.js 后台执行），重新加载当前彩种（首次安装缓存刚迁移完）
+  window.addEventListener('lp-db-ready', onDbReady)
+
   updateNextDrawText()
   scrollActiveGameIntoView()
   gameSwitchEl.value?.addEventListener('scrollend', snapGameSwitch)
   gameSwitchEl.value?.addEventListener('touchend', snapGameSwitch)
   timer = setInterval(autoTick, 60000)
   window.addEventListener('lp-auto-refresh-change', onAutoRefreshChange)
+  // stale-while-revalidate：后台静默刷新成功后更新当前彩种数据
+  window.addEventListener('lp-data-refreshed', (e) => {
+    const detail = e.detail || {}
+    if (detail.game === activeGame.value && detail.data && detail.data.draws) draws[detail.game] = detail.data
+  })
   showDailyTipIfNeeded()
   // 启动时按本地设置重新调度开奖提醒（浏览器环境内部分支自动 no-op）
   scheduleDrawNotifications()
@@ -360,6 +383,7 @@ onBeforeUnmount(() => {
   gameSwitchEl.value?.removeEventListener('scrollend', snapGameSwitch)
   gameSwitchEl.value?.removeEventListener('touchend', snapGameSwitch)
   window.removeEventListener('lp-auto-refresh-change', onAutoRefreshChange)
+  window.removeEventListener('lp-db-ready', onDbReady)
 })
 </script>
 

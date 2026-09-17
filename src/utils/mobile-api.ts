@@ -85,8 +85,8 @@ async function requestJson(url: string, referer: string, retries = 3): Promise<u
         const r = await CapacitorHttp.get({
           url,
           headers,
-          connectTimeout: 30000,
-          readTimeout: 30000
+          connectTimeout: 5000,
+          readTimeout: 10000
         })
         primaryStatus = r.status
         primaryData = r.data
@@ -431,12 +431,33 @@ function isFresh(cache: CacheShape | null): boolean {
 
 async function ensureData(game: string, force: boolean): Promise<ApiDataResult> {
   const cache = await readCache(game)
-  if (!force && isFresh(cache)) {
-    return { ok: true, source: 'cache', ...(cache as ApiDataResult) }
+  const hasCache = cache && Array.isArray(cache.draws) && cache.draws.length > 0
+
+  // stale-while-revalidate：有缓存时立即返回（不阻塞 UI），后台静默刷新
+  if (!force && hasCache) {
+    const fresh = isFresh(cache)
+    // 不新鲜时后台异步刷新（fire-and-forget，成功后 dispatch 事件通知 UI 更新）
+    if (!fresh) {
+      ;(async () => {
+        try {
+          const fn = FETCHERS[game]
+          if (!fn) return
+          _lastReqFromSnapshot = false
+          const draws = await fn()
+          const dataSource = _lastReqFromSnapshot ? 'snapshot' : 'fetch'
+          const data: CacheShape = { game, updatedAt: new Date().toISOString(), source: dataSource, draws }
+          await writeCache(game, data)
+          window.dispatchEvent(new CustomEvent('lp-data-refreshed', { detail: { game, data } }))
+        } catch {
+          /* 后台刷新失败静默忽略，UI 继续展示旧缓存 */
+        }
+      })()
+    }
+    return { ok: true, source: fresh ? 'cache' : 'cache-stale', ...(cache as ApiDataResult) }
   }
+
   const fn = FETCHERS[game]
   if (!fn) throw new Error(`未知彩种: ${game}`)
-  // v1.9.4：进入 fn 之前重置"快照标记"（fn 内部走 requestJson，主路径失败时会回退到本地快照并置 true）
   _lastReqFromSnapshot = false
   try {
     const draws = await fn()
@@ -445,7 +466,7 @@ async function ensureData(game: string, force: boolean): Promise<ApiDataResult> 
     await writeCache(game, data)
     return { ok: true, source: dataSource, ...(data as ApiDataResult) }
   } catch (e) {
-    if (cache && Array.isArray(cache.draws) && cache.draws.length > 0) {
+    if (hasCache) {
       return { ok: true, source: 'cache-stale', error: (e as Error).message, ...(cache as ApiDataResult) }
     }
     throw e
