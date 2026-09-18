@@ -178,7 +178,7 @@ export async function runBacktest(cfg: GameConfig, draws: Draw[], opts: Backtest
     const train = draws.slice(i + 1)
     const draw = draws[i]
     const res = engine.generate(train, perTicket)
-    const tickets = ((res && res.ticket && res.ticket.tickets) || []) as Array<{ red: number[]; blue: number[] }>
+    const tickets = (((res?.ticket as any)?.tickets) || []) as Array<{ red: number[]; blue: number[] }>
 
     let bestLevel = 0
     let periodBonus = 0

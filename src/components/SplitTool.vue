@@ -330,7 +330,7 @@
           </template>
           <template v-else>
             <span v-for="n in line.red" :key="'r' + n" class="ball ball-red ball-sm">{{ pad2(n) }}</span>
-            <span v-for="(b, i) in line.blue" :key="'b' + i" class="ball ball-blue ball-sm">{{ pad2(b) }}</span>
+            <span v-for="(b, bi) in line.blue" :key="'b' + bi" class="ball ball-blue ball-sm">{{ pad2(b) }}</span>
           </template>
           <span v-if="line.score != null" class="line-score">评分 {{ Math.round(line.score) }}</span>
         </div>

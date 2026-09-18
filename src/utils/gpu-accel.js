@@ -14,16 +14,11 @@
 // 开关：localStorage lp-accel-mt（兼容旧 lp-gpu-accel），默认关闭——用户主动开启。
 
 const ACCEL_KEY = 'lp-accel-mt'
-const ACCEL_KEY_LEGACY = 'lp-gpu-accel'
 
 function readAccelOn() {
   try {
     if (localStorage.getItem(ACCEL_KEY) === 'on') return true
     if (localStorage.getItem(ACCEL_KEY) === 'off') return false
-    // 兼容旧 key 一次性迁移
-    const legacy = localStorage.getItem(ACCEL_KEY_LEGACY)
-    if (legacy === 'on') { localStorage.setItem(ACCEL_KEY, 'on'); return true }
-    if (legacy === 'off') { localStorage.setItem(ACCEL_KEY, 'off'); return false }
   } catch (e) { /* localStorage 不可用（隐私模式等）时按默认关闭处理 */ }
   return false
 }

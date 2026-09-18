@@ -13,10 +13,17 @@ import { GAME_CONFIG, GAME_KEYS } from './game-config'
 
 export const NOTIFICATION_SETTINGS_KEY = 'lp-notification-settings'
 
-// 中文星期 → Date.getDay() 数值（周日=0）
-const WEEKDAY_MAP = { 日: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 }
+export interface NotificationSettings {
+  enabled: boolean
+  perGame: Record<string, boolean>
+  remindBefore: boolean
+  remindAfter: boolean
+}
 
-export const DEFAULT_NOTIFICATION_SETTINGS = {
+// 中文星期 → Date.getDay() 数值（周日=0）
+const WEEKDAY_MAP: Record<string, number> = { 日: 0, 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6 }
+
+export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: false,
   perGame: Object.fromEntries(GAME_KEYS.map((k) => [k, true])),
   remindBefore: true,
@@ -24,7 +31,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS = {
 }
 
 /** 读取本地提醒设置（带默认值兜底） */
-export function loadNotificationSettings() {
+export function loadNotificationSettings(): NotificationSettings {
   try {
     const raw = localStorage.getItem(NOTIFICATION_SETTINGS_KEY)
     if (!raw) return { ...DEFAULT_NOTIFICATION_SETTINGS }
@@ -41,7 +48,7 @@ export function loadNotificationSettings() {
 }
 
 /** 持久化提醒设置 */
-export function saveNotificationSettings(settings) {
+export function saveNotificationSettings(settings: NotificationSettings) {
   try {
     localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings))
   } catch {
@@ -54,11 +61,17 @@ export function isNotificationSupported() {
   return Capacitor.getPlatform() === 'android'
 }
 
+interface DrawSchedule {
+  days: number[]
+  hour: number
+  minute: number
+}
+
 /**
  * 解析 drawDaysText（如 "每周二、四、日 21:15" / "每日 21:30"），
  * 返回 { days: number[], hour, minute }，解析失败返回 null。
  */
-function parseDrawSchedule(drawDaysText) {
+function parseDrawSchedule(drawDaysText: string): DrawSchedule | null {
   if (!drawDaysText) return null
   const m = String(drawDaysText).match(/(\d{1,2}):(\d{2})\s*$/)
   if (!m) return null
@@ -69,7 +82,7 @@ function parseDrawSchedule(drawDaysText) {
   }
   const weekM = drawDaysText.match(/每周(.+?)\s+\d{1,2}:\d{2}/)
   if (!weekM) return null
-  const days = []
+  const days: number[] = []
   for (const ch of weekM[1]) {
     if (WEEKDAY_MAP[ch] != null) days.push(WEEKDAY_MAP[ch])
   }
@@ -77,7 +90,7 @@ function parseDrawSchedule(drawDaysText) {
 }
 
 /** 计算某彩种下一次开奖时间（未来时间），无可用时间返回 null */
-function nextDrawDate(schedule) {
+function nextDrawDate(schedule: DrawSchedule | null): Date | null {
   if (!schedule) return null
   const now = new Date()
   for (let offset = 0; offset <= 7; offset++) {
@@ -90,7 +103,7 @@ function nextDrawDate(schedule) {
 }
 
 /** 生成该彩种的通知 id（gameIndex*10 + typeIndex），避免冲突 */
-function notifyId(gameIndex, typeIndex) {
+function notifyId(gameIndex: number, typeIndex: number) {
   return gameIndex * 10 + typeIndex
 }
 
@@ -98,7 +111,7 @@ function notifyId(gameIndex, typeIndex) {
 export async function cancelAllNotifications() {
   if (!isNotificationSupported()) return
   try {
-    const ids = []
+    const ids: { id: number }[] = []
     GAME_KEYS.forEach((_, gi) => {
       ids.push({ id: notifyId(gi, 0) })
       ids.push({ id: notifyId(gi, 1) })
@@ -109,23 +122,30 @@ export async function cancelAllNotifications() {
   }
 }
 
+interface PendingNotification {
+  id: number
+  title: string
+  body: string
+  schedule: { at: Date }
+}
+
 /**
  * 根据设置重新调度全部开奖提醒。
  * 每次调用先取消旧通知，再按设置调度。
  */
-export async function scheduleDrawNotifications(settings) {
+export async function scheduleDrawNotifications(settings?: NotificationSettings) {
   if (!isNotificationSupported()) return
   const s = settings || loadNotificationSettings()
   await cancelAllNotifications()
   if (!s.enabled) return
   try {
-    const pending = []
+    const pending: PendingNotification[] = []
     GAME_KEYS.forEach((key, gi) => {
       if (!s.perGame[key]) return
       const cfg = GAME_CONFIG[key]
       const schedule = parseDrawSchedule(cfg && cfg.drawDaysText)
       const drawAt = nextDrawDate(schedule)
-      if (!drawAt) return
+      if (!schedule || !drawAt) return
       const timeText = `${pad2(schedule.hour)}:${pad2(schedule.minute)}`
       if (s.remindBefore) {
         const at = new Date(drawAt.getTime() - 15 * 60000)
@@ -164,6 +184,6 @@ export async function requestNotificationPermission() {
   }
 }
 
-function pad2(n) {
+function pad2(n: number) {
   return String(n).padStart(2, '0')
 }

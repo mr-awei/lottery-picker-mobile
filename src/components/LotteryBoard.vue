@@ -66,6 +66,9 @@ import { ref, computed, defineAsyncComponent } from 'vue'
 import { GAME_CONFIG } from '../utils/game-config'
 import { uiState } from '../utils/ui-state'
 
+// 向父组件（App.vue）声明 retry 事件，避免隐式 $emit
+defineEmits(['retry'])
+
 /* 首屏优化（1.9.11）：20 个子视图改为异步组件，按需加载。
    原静态 import 会把全部视图（含 9 个引入 echarts 的图表视图）打进主 chunk，
    使 WebView 首屏必须同步解析约 2.6MB JS，表现为白屏/黑屏数秒。

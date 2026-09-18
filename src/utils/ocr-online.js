@@ -181,8 +181,8 @@ export async function recognizeTicketOnline(dataUrl, onProgress) {
   return { text, raw, meta, stats: { totalLines, candidateLines } }
 }
 
-// debug hook：把 online OCR 入口挂到 window，方便 CDP 注入测试
-// 生产环境无副作用（仅多一个 window 属性，可后续移除）
-if (typeof window !== 'undefined') {
+// debug hook：仅开发环境把 online OCR 入口挂到 window，方便 CDP 注入测试；
+// 生产构建不暴露该全局属性。
+if (typeof window !== 'undefined' && import.meta.env.DEV) {
   window.__ocrOnline = recognizeTicketOnline
 }

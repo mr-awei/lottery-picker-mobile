@@ -11,18 +11,18 @@ const W = 750
 const H = 1000
 
 /** 把形态各异的 ticket 归一化为展示行：每行 { red: number[], blue: number[] } */
-function normalizeLines(cfg, ticket) {
+function normalizeLines(cfg: any, ticket: any) {
   if (!ticket) return []
-  const lines = []
+  const lines: Array<{ red: number[]; blue: number[] }> = []
   const isDirect = cfg.playMode === 'direct'
 
-  const pushDirect = (digits, tail) => {
+  const pushDirect = (digits: any, tail: any) => {
     lines.push({
       red: Array.isArray(digits) ? digits.map(Number) : [],
       blue: tail != null ? [Number(tail)] : []
     })
   }
-  const pushLotto = (red, blue) => {
+  const pushLotto = (red: any, blue: any) => {
     lines.push({
       red: Array.isArray(red) ? red.map(Number) : [],
       blue: Array.isArray(blue) ? blue.map(Number) : []
@@ -31,10 +31,10 @@ function normalizeLines(cfg, ticket) {
 
   if (isDirect) {
     if (ticket.type === 'multi' && Array.isArray(ticket.tickets)) {
-      ticket.tickets.forEach((t) => pushDirect(t.digits, t.tail))
+      ticket.tickets.forEach((t: any) => pushDirect(t.digits, t.tail))
     } else if (ticket.type === 'duplex' && Array.isArray(ticket.digits)) {
       // 定位复式：取每位第一个可选数字作为代表展示行
-      pushDirect(ticket.digits.map((arr) => (Array.isArray(arr) && arr.length ? arr[0] : 0)), ticket.tail)
+      pushDirect(ticket.digits.map((arr: any) => (Array.isArray(arr) && arr.length ? arr[0] : 0)), ticket.tail)
     } else if (Array.isArray(ticket.digits)) {
       pushDirect(ticket.digits, ticket.tail)
     }
@@ -42,7 +42,7 @@ function normalizeLines(cfg, ticket) {
   }
 
   if (ticket.type === 'multi' && Array.isArray(ticket.tickets)) {
-    ticket.tickets.forEach((t) => pushLotto(t.red, t.blue))
+    ticket.tickets.forEach((t: any) => pushLotto(t.red, t.blue))
   } else if (ticket.type === 'danTuo') {
     pushLotto([...(ticket.danRed || []), ...(ticket.tuoRed || [])], ticket.blue || [])
   } else if (Array.isArray(ticket.red)) {
@@ -51,7 +51,7 @@ function normalizeLines(cfg, ticket) {
   return lines
 }
 
-function drawBall(ctx, cx, cy, r, text, color) {
+function drawBall(ctx: any, cx: number, cy: number, r: number, text: string, color: string) {
   const g = ctx.createRadialGradient(cx - r * 0.35, cy - r * 0.35, r * 0.15, cx, cy, r)
   if (color === 'red') {
     g.addColorStop(0, '#ff9a8a')
@@ -74,7 +74,7 @@ function drawBall(ctx, cx, cy, r, text, color) {
   ctx.fillText(text, cx, cy + r * 0.05)
 }
 
-function pad2(n) {
+function pad2(n: number) {
   return String(n).padStart(2, '0')
 }
 
@@ -85,7 +85,7 @@ function pad2(n) {
  * @param {object} ticket 选号票（single/multi/duplex/danTuo）
  * @param {string} date 顶部展示日期文本
  */
-export function drawShareImage(canvas, cfg, ticket, date) {
+export function drawShareImage(canvas: any, cfg: any, ticket: any, date: string) {
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')
@@ -166,7 +166,7 @@ export function drawShareImage(canvas, cfg, ticket, date) {
 }
 
 /** 把已绘制好的 canvas 导出为 PNG 并触发下载（移动端 WebView 下 a.download 同样可用） */
-export function downloadShareImage(canvas, filename) {
+export function downloadShareImage(canvas: any, filename?: string) {
   const url = canvas.toDataURL('image/png')
   const a = document.createElement('a')
   a.href = url
@@ -179,6 +179,6 @@ export function downloadShareImage(canvas, filename) {
 /** 当前日期字符串（顶部展示用） */
 export function todayText() {
   const d = new Date()
-  const p = (x) => String(x).padStart(2, '0')
+  const p = (x: number) => String(x).padStart(2, '0')
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }

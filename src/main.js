@@ -37,7 +37,9 @@ createApp({
   }
 })()
 
-// 调试钩子：暴露引擎模块到 window.__lp（CDP 验收/排障用，生产无副作用）
-import('./utils/debug-hooks').then((m) => {
-  window.__lp = m
-}).catch((e) => console.warn('[debug-hooks] load failed', e))
+// 调试钩子：仅开发环境暴露引擎到 window.__lp（CDP 验收/排障用），生产构建不引入
+if (import.meta.env.DEV) {
+  import('./utils/debug-hooks').then((m) => {
+    window.__lp = m
+  }).catch((e) => console.warn('[debug-hooks] load failed', e))
+}

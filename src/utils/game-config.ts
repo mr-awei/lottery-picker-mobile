@@ -78,6 +78,8 @@ export const GAME_CONFIG: Record<string, GameConfig> = {
     blueCount: 0,
     blueMax: 0,
     kl8: true,
+    sumMin: 210,
+    sumMax: 1410,
     kl8Selects: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     zoneEdges: [27, 54],
     zoneTarget: [3, 4, 3],

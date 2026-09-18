@@ -238,7 +238,7 @@ function parseSportteryRows(rows: SportteryRow[]): Draw[] {
     const nums = String(r.lotteryDrawResult || '').trim().split(/\s+/).filter(Boolean).map(Number)
     const prizeMap: Record<string, number> = {}
     const list = Array.isArray(r.prizeLevelList) ? r.prizeLevelList : []
-    let first: PrizeLevelEntry | null = null
+    let first: any = null
     list.forEach((p) => {
       const amt = String(p.stakeAmountFormat || '').replace(/,/g, '')
       if (amt !== '' && Number(amt) > 0) prizeMap[String(p.prizeLevel || '')] = Number(amt)
@@ -453,7 +453,7 @@ async function ensureData(game: string, force: boolean): Promise<ApiDataResult> 
         }
       })()
     }
-    return { ok: true, source: fresh ? 'cache' : 'cache-stale', ...(cache as ApiDataResult) }
+    return { ...(cache as ApiDataResult), ok: true, source: fresh ? 'cache' : 'cache-stale' }
   }
 
   const fn = FETCHERS[game]
@@ -464,10 +464,10 @@ async function ensureData(game: string, force: boolean): Promise<ApiDataResult> 
     const dataSource = _lastReqFromSnapshot ? 'snapshot' : 'fetch'
     const data: CacheShape = { game, updatedAt: new Date().toISOString(), source: dataSource, draws }
     await writeCache(game, data)
-    return { ok: true, source: dataSource, ...(data as ApiDataResult) }
+    return { ...(data as ApiDataResult), ok: true, source: dataSource }
   } catch (e) {
     if (hasCache) {
-      return { ok: true, source: 'cache-stale', error: (e as Error).message, ...(cache as ApiDataResult) }
+      return { ...(cache as ApiDataResult), ok: true, source: 'cache-stale', error: (e as Error).message }
     }
     throw e
   }
@@ -477,14 +477,14 @@ async function ensureData(game: string, force: boolean): Promise<ApiDataResult> 
 export const lotteryApi = {
   async get(game: string): Promise<ApiDataResult> {
     try {
-      return { ok: true, ...(await ensureData(game, false)) }
+      return { ...(await ensureData(game, false)), ok: true }
     } catch (err) {
       return { ok: false, error: (err as Error).message }
     }
   },
   async refresh(game: string): Promise<ApiDataResult> {
     try {
-      return { ok: true, ...(await ensureData(game, true)) }
+      return { ...(await ensureData(game, true)), ok: true }
     } catch (err) {
       return { ok: false, error: (err as Error).message }
     }

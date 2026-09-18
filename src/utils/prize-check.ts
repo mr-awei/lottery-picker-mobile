@@ -175,8 +175,8 @@ export function checkTicketDirect(cfg: GameConfig, ticket: Ticket | null | undef
     }
   })
   return {
-    level: best ? best.level : 0,
-    name: best ? best.name : '未中奖',
+    level: best ? (best as any).level : 0,
+    name: best ? (best as any).name : '未中奖',
     bonus,
     winCount,
     totalCount: results.length,
@@ -218,8 +218,8 @@ export function checkTicket(cfg: GameConfig, ticket: Ticket | null | undefined, 
     }
   })
   return {
-    level: best ? best.level : 0,
-    name: best ? best.name : '未中奖',
+    level: best ? (best as any).level : 0,
+    name: best ? (best as any).name : '未中奖',
     bonus,
     winCount,
     totalCount: results.length,

@@ -425,34 +425,35 @@ export function calcPlay(cfg: GameConfig, play: Ticket | null | undefined): { co
     return calcDirectPlay(cfg, play)
   }
   const type = play ? play.type : 'single'
+  const p = (play ?? {}) as any
   let combos = 0
   if (type === 'single') combos = 1
-  else if (type === 'multi') combos = Math.max(1, play.n || (Array.isArray(play.tickets) ? play.tickets.length : 1))
+  else if (type === 'multi') combos = Math.max(1, p.n || (Array.isArray(p.tickets) ? p.tickets.length : 1))
   else if (type === 'duplex') {
     // 兼容两种入参：玩法配置（redCount/blueCount）或实际票（red/blue 数组）
-    const r = Array.isArray(play.red) ? play.red.length : (play.redCount || (cfg.redCount ?? 0) + 1)
-    const b = Array.isArray(play.blue) ? play.blue.length : (play.blueCount ?? cfg.blueCount ?? 0)
+    const r = Array.isArray(p.red) ? p.red.length : (p.redCount || (cfg.redCount ?? 0) + 1)
+    const b = Array.isArray(p.blue) ? p.blue.length : (p.blueCount ?? cfg.blueCount ?? 0)
     combos = comb(r, cfg.redCount ?? 0) * comb(b, cfg.blueCount ?? 0)
   } else if (type === 'danTuo') {
-    const dan = Array.isArray(play.danRed) ? play.danRed.length : 0
-    const tuo = Array.isArray(play.tuoRed) ? play.tuoRed.length : 0
+    const dan = Array.isArray(p.danRed) ? p.danRed.length : 0
+    const tuo = Array.isArray(p.tuoRed) ? p.tuoRed.length : 0
     if (dan >= (cfg.redCount ?? 0) || tuo <= 0) {
       combos = 0
     } else {
       const redCombos = comb(tuo, (cfg.redCount ?? 0) - dan)
       // 后区胆拖（大乐透）：蓝球由 blueDan 固定 + 组合(blueTuo, blueCount - blueDan.length) 构成
-      const blueDan = Array.isArray(play.blueDan) ? play.blueDan.length : 0
-      const blueTuo = Array.isArray(play.blueTuo) ? play.blueTuo.length : 0
+      const blueDan = Array.isArray(p.blueDan) ? p.blueDan.length : 0
+      const blueTuo = Array.isArray(p.blueTuo) ? p.blueTuo.length : 0
       if (blueDan > 0 && blueTuo >= (cfg.blueCount ?? 0) - blueDan && blueDan < (cfg.blueCount ?? 0)) {
         combos = redCombos * comb(blueTuo, (cfg.blueCount ?? 0) - blueDan)
       } else {
-        const b = Array.isArray(play.blue) ? play.blue.length : (cfg.blueCount ?? 0)
+        const b = Array.isArray(p.blue) ? p.blue.length : (cfg.blueCount ?? 0)
         combos = redCombos * comb(b, cfg.blueCount ?? 0)
       }
     }
   }
-  const append = !!(cfg.zhuijia && play && play.append)
-  const multiple = Math.max(1, Math.min(99, (play && play.multiple) || 1))
+  const append = !!(cfg.zhuijia && p.append)
+  const multiple = Math.max(1, Math.min(99, p.multiple || 1))
   const price = append ? UNIT_PRICE + (cfg.zhuijiaPrice || 1) : UNIT_PRICE
   return { combos, amount: combos * price * multiple, append, multiple }
 }
@@ -515,8 +516,8 @@ export function extractTickets(text: string | null | undefined, cfg: GameConfig)
   // 从 body 字符串里抽 red/blue，返回 {red, blue} 或 null
   const parseBody = (body: string): { red: number[]; blue: number[] } | null => {
     const plusM = body.match(/^(.+?)\s*\+\s*(.+)$/)
-    let redNums: RegExpMatchArray | null
-    let blueNums: RegExpMatchArray | null
+    let redNums: string[] | null
+    let blueNums: string[] | null
     if (plusM) {
       redNums = plusM[1].match(/\d+/g)
       blueNums = plusM[2].match(/\d+/g)
@@ -558,8 +559,8 @@ export function extractTickets(text: string | null | undefined, cfg: GameConfig)
     if (/^\d+[).、]/.test(line)) continue
     // 简单按 + 切 + 抽数字（与原 parseLine 等价；不处理"红区/蓝区"分段 —— 那是 FileCheck 组件自己用）
     const plusM = line.match(/^(.+?)\s*\+\s*(.+)$/)
-    let redNums: RegExpMatchArray | null
-    let blueNums: RegExpMatchArray | null
+    let redNums: string[] | null
+    let blueNums: string[] | null
     if (plusM) {
       redNums = plusM[1].match(/\d+/g)
       blueNums = plusM[2].match(/\d+/g)
@@ -766,7 +767,7 @@ function pickBest(cfg: GameConfig, s: ScoreStats, pool: number[], k: number, m: 
   }
 
   tryRound(tries, strict)
-  if (strict && (!best || best.score.total < 92)) tryRound(300, false)
+  if (strict && (!best || (best as any).score.total < 92)) tryRound(300, false)
   if (!best) {
     const picked = randPick(range(cfg.redMax ?? 0), k).sort((a, b) => a - b)
     return { red: picked, score: scoreRed(cfg, picked, s) }
@@ -878,12 +879,12 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       }
       const ticket = { type: 'multi' as const, tickets, append }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
-      return { ticket, stats: s, ...scored }
+      return { ...{ ticket, stats: s }, ...scored }
     }
 
     if (type === 'duplex') {
-      const r = Math.max(cfg.redCount + 1, Math.min(cfg.redMax, (play && play.redCount) || cfg.redCount + 1))
-      const b = Math.max(cfg.blueCount, Math.min(cfg.blueMax, (play && play.blueCount) || cfg.blueCount))
+      const r = Math.max((cfg.redCount ?? 0) + 1, Math.min(cfg.redMax ?? 0, (play && play.redCount) || (cfg.redCount ?? 0) + 1))
+      const b = Math.max(cfg.blueCount ?? 0, Math.min(cfg.blueMax ?? 0, (play && play.blueCount) || (cfg.blueCount ?? 0)))
       const lr = lockedRed.slice(0, r)
       const rs = generateRedSet(s, pool, r, false, lr, exRed)
       const lb = lockedBlue.slice(0, b)
@@ -892,12 +893,12 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
       const blues = [...lb, ...randPickUnique(bluePool, needB)].sort((a, b) => a - b)
       const ticket = { type: 'duplex' as const, red: rs.red, blue: blues, append }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
-      return { ticket, stats: s, ...scored }
+      return { ...{ ticket, stats: s }, ...scored }
     }
 
     if (type === 'danTuo') {
-      const danN = Math.max(1, Math.min(cfg.redCount - 1, (play && play.danN) || cfg.redCount - 1))
-      const tuoN = Math.max(cfg.redCount - danN + 1, Math.min(cfg.redMax - danN, (play && play.tuoN) || cfg.redCount - danN + 2))
+      const danN = Math.max(1, Math.min((cfg.redCount ?? 0) - 1, (play && play.danN) || (cfg.redCount ?? 0) - 1))
+      const tuoN = Math.max((cfg.redCount ?? 0) - danN + 1, Math.min((cfg.redMax ?? 0) - danN, (play && play.tuoN) || (cfg.redCount ?? 0) - danN + 2))
       // 锁定红球优先作为胆码；超出部分忽略
       const lr = lockedRed.slice(0, danN)
       const dan = generateRedSet(s, pool, danN, false, lr, exRed)
@@ -927,7 +928,7 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
         ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blueDan, blueTuo, blue: [...blueDan, ...blueTuo].slice(0, cfg.blueMax ?? 0), append }
       } else {
         // 复式胆拖：蓝球多选（官方玩法，双色球蓝球 1~16 任选、大乐透后区多选）
-        const blueN = Math.max(cfg.blueCount, Math.min(cfg.blueMax, (play && play.blueCount) || cfg.blueCount))
+        const blueN = Math.max(cfg.blueCount ?? 0, Math.min(cfg.blueMax ?? 0, (play && play.blueCount) || (cfg.blueCount ?? 0)))
         const lb = normLocked(cfg.blueMax ?? 0, lockedBlue).slice(0, blueN)
         const needB = blueN - lb.length
         const bpool = buildBluePool(s).filter((n) => !lb.includes(n) && !exBlue.includes(n))
@@ -935,7 +936,7 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
         ticket = { type: 'danTuo', danRed: dan.red, tuoRed: tuo, blue: blues, append }
       }
       const scored = scoreTicketPlay(cfg, draws, ticket, s)
-      return { ticket, stats: s, ...scored }
+      return { ...{ ticket, stats: s }, ...scored }
     }
 
     // single（默认）
@@ -943,7 +944,7 @@ export function createPickerEngine(cfg: GameConfig, methods?: string[] | null) {
     const blue = generateBlue(s, pool, lockedBlue, exBlue)
     const ticket = { type: 'single' as const, red: t.red, blue, append }
     const scored = scoreTicketPlay(cfg, draws, ticket, s)
-    return { ticket, stats: s, ...scored }
+    return { ...{ ticket, stats: s }, ...scored }
   }
 
   /**
@@ -1223,18 +1224,19 @@ export function generateDirect(
 /** 直位玩法注数与金额计算：单注/多注/定位复式 */
 export function calcDirectPlay(cfg: GameConfig, play: Ticket | null | undefined): { combos: number; amount: number; append: boolean; multiple: number } {
   const type = play ? play.type : 'single'
+  const p = (play ?? {}) as any
   let combos = 0
   if (type === 'single') combos = 1
-  else if (type === 'multi') combos = Math.max(1, play.n || (Array.isArray(play.tickets) ? play.tickets.length : 1))
+  else if (type === 'multi') combos = Math.max(1, p.n || (Array.isArray(p.tickets) ? p.tickets.length : 1))
   else if (type === 'duplex') {
     let c = 1
-    ;(play.pos || []).forEach((arr) => {
+    ;(p.pos || []).forEach((arr: any) => {
       if (Array.isArray(arr) && arr.length) c *= arr.length
     })
-    if (play.tail && Array.isArray(play.tail) && play.tail.length) c *= play.tail.length
+    if (p.tail && Array.isArray(p.tail) && p.tail.length) c *= p.tail.length
     combos = c
   }
-  const multiple = Math.max(1, Math.min(99, (play && play.multiple) || 1))
+  const multiple = Math.max(1, Math.min(99, p.multiple || 1))
   return { combos, amount: combos * 2 * multiple, append: false, multiple }
 }
 
