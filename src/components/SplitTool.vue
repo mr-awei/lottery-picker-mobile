@@ -344,7 +344,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { pad2 } from '../utils/game-config'
 import { expandTicket, scoreTicketPlay, computeDirectStats, computeStats, scoreDigits } from '../utils/picker-engine'
 import { filterByConditions, oddEvenOptions, bigSmallOptions } from '../utils/filter'

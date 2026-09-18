@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { checkTicketHistory, isBigWin, bigWinFlow, smallWinNote, fmtBonus } from '../utils/prize-check'
 import { Camera } from '@capacitor/camera'
 // 在线 OCR 为主路径；本地 tesseract 兜底改为 dynamic import（1.8.3）：只在在线识别失败时才加载

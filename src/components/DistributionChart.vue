@@ -611,7 +611,11 @@ onBeforeUnmount(() => {
 /* 横屏全屏覆盖层 */
 .dc-landscape {
   position: fixed;
-  inset: 0;
+  /* inset 简写需 Chrome 87+，WebView 83 下会收缩成内容大小，故显式写四边 */
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 9999;
   background: #0e1430;
   display: flex;

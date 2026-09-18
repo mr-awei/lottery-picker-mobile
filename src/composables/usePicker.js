@@ -1,5 +1,5 @@
 import { ref, computed, reactive, watch, onMounted, onBeforeUnmount, onDeactivated } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { createPickerEngine, calcPlay, ALL_METHODS, METHOD_LABELS, calcDirectPlay, expandDirectTicket, createDirectPickerEngine, computeDirectStats, scoreDigits, generateDirect } from '../utils/picker-engine'
 import { runAccelerated, getBackendLabel, isAccelEnabled } from '../utils/gpu-accel'
 import { useRolling } from './useRolling'

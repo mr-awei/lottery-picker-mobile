@@ -41,6 +41,9 @@ temp/
 android/build-err.txt
 android/build-log.txt
 coverage/
+# unplugin-vue-components 自动生成的类型声明（每次构建重新生成，无需入库）
+components.d.ts
+auto-imports.d.ts
 
 # Node cache
 .npm/

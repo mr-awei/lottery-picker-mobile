@@ -164,7 +164,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { pad2 } from '../utils/game-config'
 import { drawShareImage, downloadShareImage, todayText } from '../utils/share-image'
 import { calcPlay, calcDirectPlay, scoreTicketPlay, expandDirectTicket, scoreDigits, computeDirectStats, scoreItemsFor } from '../utils/picker-engine'

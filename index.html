@@ -5,14 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https: ws: http://localhost:5173 data: blob:; worker-src 'self' blob: data:; font-src 'self' data:">
   <title>彩票选号器</title>
+  <script src="./boot-error.js"></script>
   <style>
     #lp-boot {
-      position: fixed; inset: 0; z-index: 9999;
+      /* 兼容 WebView 83（Android 11 自带）：inset 简写需 Chrome 87+，
+         否则 position:fixed 拿不到定位值会收缩成内容大小（表现为左上角一小块） */
+      position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 9999;
       display: flex; flex-direction: column; align-items: center; justify-content: center;
       background: #ffffff; transition: opacity .3s ease;
     }
     #lp-boot.hide { opacity: 0; pointer-events: none; }
-    .lp-boot-balls { display: flex; gap: 8px; margin-bottom: 20px; }
+    /* 兼容 WebView 83：flex gap 需 Chrome 84+，改用 margin 实现球间距 */
+    .lp-boot-balls { display: flex; margin-bottom: 20px; }
+    .lp-boot-balls span + span { margin-left: 8px; }
     .lp-boot-balls span {
       width: 28px; height: 28px; border-radius: 50%;
       animation: lp-bounce 1.2s ease-in-out infinite;

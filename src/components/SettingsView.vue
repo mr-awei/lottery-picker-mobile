@@ -226,7 +226,8 @@
 
 <script setup>
 import { ref, computed, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index.mjs'
 import { GAME_CONFIG, GAME_KEYS } from '../utils/game-config'
 import { theme, applyTheme } from '../utils/ui-state'
 import { APP_VERSION } from '../utils/version'

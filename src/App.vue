@@ -1,5 +1,4 @@
 <template>
-  <el-config-provider :locale="zhCn">
   <div class="app" :class="'theme-' + activeGame">
     <!-- 顶部栏：logo + 主题切换 + 刷新 -->
     <header class="app-header">
@@ -85,12 +84,10 @@
       </div>
     </el-dialog>
   </div>
-  </el-config-provider>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, onBeforeUnmount, nextTick } from 'vue'
- import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import LotteryBoard from './components/LotteryBoard.vue'
 import { theme, toggleTheme } from './utils/ui-state'
 import { lotteryApi } from './utils/mobile-api'

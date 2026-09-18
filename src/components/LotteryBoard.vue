@@ -62,29 +62,35 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, defineAsyncComponent } from 'vue'
 import { GAME_CONFIG } from '../utils/game-config'
 import { uiState } from '../utils/ui-state'
-import HistoryTable from './HistoryTable.vue'
-import DistributionChart from './DistributionChart.vue'
-import TrendChart from './TrendChart.vue'
-import MaxPrizeCard from './MaxPrizeCard.vue'
-import PrizeMap from './PrizeMap.vue'
-import PoolView from './PoolView.vue'
-import HotColdBoard from './HotColdBoard.vue'
-import MatrixView from './MatrixView.vue'
-import AiPicker from './AiPicker.vue'
-import MyPicks from './MyPicks.vue'
-import FileCheck from './FileCheck.vue'
-import SplitTool from './SplitTool.vue'
-import ChasePlan from './ChasePlan.vue'
-import KnowledgeView from './KnowledgeView.vue'
-import SettingsView from './SettingsView.vue'
-import BacktestView from './BacktestView.vue'
-import OmitAnalysis from './OmitAnalysis.vue'
-import BlueAnalysis from './BlueAnalysis.vue'
-import HistorySameView from './HistorySameView.vue'
-import NumberRelationView from './NumberRelationView.vue'
+
+/* 首屏优化（1.9.11）：20 个子视图改为异步组件，按需加载。
+   原静态 import 会把全部视图（含 9 个引入 echarts 的图表视图）打进主 chunk，
+   使 WebView 首屏必须同步解析约 2.6MB JS，表现为白屏/黑屏数秒。
+   改为懒加载后：首屏只加载当前 tab 的视图，echarts（~700KB）延迟到
+   首次进入图表 tab 时才加载。keep-alive 保活行为不变。 */
+const HistoryTable = defineAsyncComponent(() => import('./HistoryTable.vue'))
+const DistributionChart = defineAsyncComponent(() => import('./DistributionChart.vue'))
+const TrendChart = defineAsyncComponent(() => import('./TrendChart.vue'))
+const MaxPrizeCard = defineAsyncComponent(() => import('./MaxPrizeCard.vue'))
+const PrizeMap = defineAsyncComponent(() => import('./PrizeMap.vue'))
+const PoolView = defineAsyncComponent(() => import('./PoolView.vue'))
+const HotColdBoard = defineAsyncComponent(() => import('./HotColdBoard.vue'))
+const MatrixView = defineAsyncComponent(() => import('./MatrixView.vue'))
+const AiPicker = defineAsyncComponent(() => import('./AiPicker.vue'))
+const MyPicks = defineAsyncComponent(() => import('./MyPicks.vue'))
+const FileCheck = defineAsyncComponent(() => import('./FileCheck.vue'))
+const SplitTool = defineAsyncComponent(() => import('./SplitTool.vue'))
+const ChasePlan = defineAsyncComponent(() => import('./ChasePlan.vue'))
+const KnowledgeView = defineAsyncComponent(() => import('./KnowledgeView.vue'))
+const SettingsView = defineAsyncComponent(() => import('./SettingsView.vue'))
+const BacktestView = defineAsyncComponent(() => import('./BacktestView.vue'))
+const OmitAnalysis = defineAsyncComponent(() => import('./OmitAnalysis.vue'))
+const BlueAnalysis = defineAsyncComponent(() => import('./BlueAnalysis.vue'))
+const HistorySameView = defineAsyncComponent(() => import('./HistorySameView.vue'))
+const NumberRelationView = defineAsyncComponent(() => import('./NumberRelationView.vue'))
 
 const props = defineProps({
   game: { type: String, required: true },

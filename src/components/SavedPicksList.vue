@@ -219,7 +219,8 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, onActivated } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus/es/components/message/index.mjs'
+import { ElMessageBox } from 'element-plus/es/components/message-box/index.mjs'
 import { pad2, fmtDate } from '../utils/game-config'
 import { checkTicketHistory, checkTicketHistoryMulti, isBigWin, bigWinFlow, smallWinNote, fmtBonus } from '../utils/prize-check'
 import { get, set, STORE_PICKS } from '../utils/db'
