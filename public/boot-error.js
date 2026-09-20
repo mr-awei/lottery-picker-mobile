@@ -26,4 +26,10 @@
   document.addEventListener('securitypolicyviolation', function (e) {
     showError('CSP: ' + e.violatedDirective + ' blocked ' + e.blockedURI + ' (' + e.effectiveDirective + ')')
   })
+  // 兜底：若 8s 后启动屏仍在，强制隐藏，避免 JS 崩溃导致永久卡在加载动画
+  // （正常挂载时 Vue 早已加 .hide，此处再加一次为 no-op，无副作用）
+  setTimeout(function () {
+    var b = document.getElementById('lp-boot')
+    if (b && !b.classList.contains('hide')) b.classList.add('hide')
+  }, 8000)
 })()

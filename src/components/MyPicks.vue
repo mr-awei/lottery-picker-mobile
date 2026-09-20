@@ -413,8 +413,8 @@ const canSave = computed(() => {
     return hasLocked.value
   }
   if (playType.value === 'multi') return draft.value.length > 0 || hasLocked.value
-  // 单注/复式/胆拖：只要自定义了号码即可保存，缺的由 AI 补齐
-  return hasLocked.value
+  // 单注/复式/胆拖：已自定义号码（缺的由 AI 自动补齐）或选区已完整（随机选号 / AI 补齐）均可保存
+  return hasLocked.value || !needsFill()
 })
 
 /** 当前票是否已选完整（不需要 AI 补齐） */
@@ -571,6 +571,8 @@ function randomPick() {
     const b = Math.min(props.cfg.blueMax, props.cfg.blueCount + (props.cfg.blueCount === 1 ? randInt(0, 1) : randInt(0, 2)))
     redSel.value = shuffle(pool).slice(0, r).sort((a, b) => a - b)
     blueSel.value = shuffle(bpool).slice(0, Math.max(props.cfg.blueCount, b)).sort((a, b) => a - b)
+    userRed.value = [...redSel.value]
+    userBlue.value = [...blueSel.value]
   } else if (playType.value === 'danTuo') {
     const danN = randInt(1, props.cfg.redCount - 1)
     danSel.value = shuffle(pool).slice(0, danN).sort((a, b) => a - b)
@@ -578,9 +580,14 @@ function randomPick() {
     const tuoN = randInt(props.cfg.redCount - danN, Math.min(props.cfg.redCount - danN + 3, rest.length))
     tuoSel.value = shuffle(rest).slice(0, tuoN).sort((a, b) => a - b)
     blueSel.value = shuffle(bpool).slice(0, props.cfg.blueCount).sort((a, b) => a - b)
+    userDan.value = [...danSel.value]
+    userTuo.value = [...tuoSel.value]
+    userBlue.value = [...blueSel.value]
   } else {
     redSel.value = shuffle(pool).slice(0, props.cfg.redCount).sort((a, b) => a - b)
     blueSel.value = shuffle(bpool).slice(0, props.cfg.blueCount).sort((a, b) => a - b)
+    userRed.value = [...redSel.value]
+    userBlue.value = [...blueSel.value]
   }
 }
 

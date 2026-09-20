@@ -114,46 +114,79 @@ function fullCombo(name: string, poolSize: number, pickSize: number): WheelingFo
   return { name, poolSize, pickSize, guarantee: pickSize, lines, count: lines.length }
 }
 
+/** 支持旋转矩阵的彩种 → 选号位数 / 最大号码池 */
+const PICK_SIZE: Record<string, number> = { ssq: 6, dlt: 5 }
+const MAX_POOL: Record<string, number> = { ssq: 12, dlt: 10 }
+
+/** 是否支持旋转矩阵（轻量检查，不触发任何公式生成） */
+export function isWheelingSupported(gameKey: string): boolean {
+  return !!PICK_SIZE[gameKey]
+}
+
 /**
- * 动态生成某彩种全部公式。
+ * 生成某彩种「单个号码池」的公式。
  * 保证等级：pickSize-2（激进缩水）、pickSize-1（标准缩水）、pickSize（全保）
  */
-function buildFormulas(gameKey: string, pickSize: number, maxPool: number): WheelingFormula[] {
-  const formulas: WheelingFormula[] = []
-  for (let pool = pickSize + 1; pool <= maxPool; pool++) {
-    // 激进缩水：中 pickSize 保 pickSize-2（注数最少，老彩民资金有限常用）
-    const aggressive = greedyCovering(pool, pickSize, pickSize - 2, 20)
-    formulas.push({
+function buildPoolFormulas(pickSize: number, pool: number): WheelingFormula[] {
+  const aggressive = greedyCovering(pool, pickSize, pickSize - 2, 20)
+  const reduced = greedyCovering(pool, pickSize, pickSize - 1, 30)
+  return [
+    {
       name: `选${pool}中${pickSize}保${pickSize - 2}`,
       poolSize: pool,
       pickSize,
       guarantee: pickSize - 2,
       lines: aggressive,
       count: aggressive.length
-    })
-    // 标准缩水：中 pickSize 保 pickSize-1（最常用，资金充裕型）
-    const reduced = greedyCovering(pool, pickSize, pickSize - 1, 30)
-    formulas.push({
+    },
+    {
       name: `选${pool}中${pickSize}保${pickSize - 1}`,
       poolSize: pool,
       pickSize,
       guarantee: pickSize - 1,
       lines: reduced,
       count: reduced.length
-    })
-    // 全保：中 pickSize 保 pickSize（全组合）
-    formulas.push(fullCombo(`选${pool}中${pickSize}全保`, pool, pickSize))
-  }
-  return formulas
+    },
+    fullCombo(`选${pool}中${pickSize}全保`, pool, pickSize)
+  ]
 }
 
-/** 公式表：模块加载时动态生成并缓存 */
-const FORMULA_CACHE: Record<string, WheelingFormula[]> = {
-  ssq: buildFormulas('ssq', 6, 12),
-  dlt: buildFormulas('dlt', 5, 10)
+/**
+ * 公式缓存：**按 (彩种, 号码池) 懒生成**。
+ * ⚠️ 性能关键：绝不在模块加载期生成公式。旧实现在 import 时就为主流彩种的全部号码池
+ * 跑数十次「随机重启贪心覆盖」（枚举 C(n,k) 组合），同步阻塞主线程数秒——这正是
+ * 「首次进入复式拆票页要等好久、之后秒切」的根因。
+ */
+const POOL_CACHE: Record<string, WheelingFormula[]> = {}
+
+function poolFormulas(gameKey: string, poolSize: number): WheelingFormula[] {
+  const pickSize = PICK_SIZE[gameKey]
+  const maxPool = MAX_POOL[gameKey]
+  if (!pickSize || !maxPool || poolSize <= pickSize || poolSize > maxPool) return []
+  const key = `${gameKey}:${poolSize}`
+  if (!POOL_CACHE[key]) POOL_CACHE[key] = buildPoolFormulas(pickSize, poolSize)
+  return POOL_CACHE[key]
 }
 
-export const WHEELING_TABLE: Record<string, WheelingFormula[]> = FORMULA_CACHE
+/**
+ * 某彩种全部公式（惰性拼装：访问该彩种时才生成对应池，之后走缓存）。
+ * 仅为测试/兼容保留；应用内请优先用 getFormulasForPool / isWheelingSupported，
+ * 避免一次性生成整表造成卡顿。
+ */
+export const WHEELING_TABLE: Record<string, WheelingFormula[]> = {}
+for (const g of Object.keys(PICK_SIZE)) {
+  Object.defineProperty(WHEELING_TABLE, g, {
+    enumerable: true,
+    configurable: true,
+    get() {
+      const pickSize = PICK_SIZE[g]
+      const maxPool = MAX_POOL[g]
+      const out: WheelingFormula[] = []
+      for (let pool = pickSize + 1; pool <= maxPool; pool++) out.push(...poolFormulas(g, pool))
+      return out
+    }
+  })
+}
 
 /** 应用旋转矩阵：索引映射为实际号码 */
 export function applyWheeling(pool: number[], formula: WheelingFormula): number[][] {
@@ -163,8 +196,7 @@ export function applyWheeling(pool: number[], formula: WheelingFormula): number[
   )
 }
 
-/** 获取某彩种某号码池大小可用的公式列表 */
+/** 获取某彩种某号码池大小可用的公式列表（按需懒生成并缓存） */
 export function getFormulasForPool(gameKey: string, poolSize: number): WheelingFormula[] {
-  const all = FORMULA_CACHE[gameKey] || []
-  return all.filter((f) => f.poolSize === poolSize)
+  return poolFormulas(gameKey, poolSize)
 }

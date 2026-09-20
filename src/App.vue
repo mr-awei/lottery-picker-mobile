@@ -340,14 +340,17 @@ onMounted(async () => {
   // 立即隐藏（nextTick 确保 Vue 已渲染首帧），超时保底2秒
   await nextTick()
   hideSplash()
-  const bootTimer = setTimeout(hideBoot, 5000)
+  // 注意：hideBoot 必须先于 bootTimer 声明，否则 setTimeout(hideBoot,…) 在求值参数时会
+  // 命中 const 的暂时性死区（TDZ）抛出 ReferenceError，导致 onMounted 崩溃、启动动画永不隐藏。
+  let bootTimer
   const hideBoot = () => {
     const b = document.getElementById('lp-boot')
     if (b) {
       b.classList.add('hide')
-      clearTimeout(bootTimer) // 挂载成功即取消 5s 兜底，避免遗留定时器
+      if (bootTimer) clearTimeout(bootTimer) // 挂载成功即取消 5s 兜底，避免遗留定时器
     }
   }
+  bootTimer = setTimeout(hideBoot, 5000)
   hideBoot()
   const splashTimer = setTimeout(hideSplash, 2000)
 

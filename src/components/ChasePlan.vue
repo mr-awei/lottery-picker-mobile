@@ -10,7 +10,32 @@
     />
 
     <div class="panel">
-      <template v-if="isDirect">
+      <div class="import-row">
+        <el-button size="small" type="warning" plain @click="openImport">从自选号导入</el-button>
+        <el-button v-if="importedTicket" size="small" text @click="clearImport">取消导入</el-button>
+        <span v-if="importedTicket" class="import-meta">
+          已导入 {{ importedTypeLabel }} · {{ importedTotal }} 注<span v-if="importedSavedAt">（保存于 {{ importedSavedAt }}）</span>
+        </span>
+      </div>
+
+      <div v-if="importedTicket" class="import-banner">
+        <div class="import-lines">
+          <div v-for="(l, i) in importedPreview" :key="i" class="import-line">
+            <span class="import-line-no">{{ i + 1 }}</span>
+            <template v-if="l.digits">
+              <span v-for="(dv, di) in l.digits" :key="'d' + di" class="ball ball-red ball-xs">{{ dv }}</span>
+              <span v-if="l.tail != null" class="ball ball-blue ball-xs">{{ l.tail }}</span>
+            </template>
+            <template v-else>
+              <span v-for="n in l.red" :key="'r' + n" class="ball ball-red ball-xs">{{ pad2(n) }}</span>
+              <span v-for="(b, bi) in l.blue" :key="'b' + bi" class="ball ball-blue ball-xs">{{ pad2(b) }}</span>
+            </template>
+          </div>
+          <div v-if="importedTotal > importedPreview.length" class="dim" style="font-size: 12px">… 共 {{ importedTotal }} 注</div>
+        </div>
+      </div>
+
+      <template v-else-if="isDirect">
         <div v-for="(d, di) in cfg.digits" :key="'pos' + di" class="zone-label" :class="{ 'red-label': true }">
           {{ d.label }}
           <el-select v-model="chaseDigits[di]" size="small" style="width: 90px; margin-left: 6px">
@@ -47,15 +72,14 @@
             @click="toggleBlue(n)"
           >{{ pad2(n) }}</button>
         </div>
-        <div v-if="isDuplex" class="duplex-info">
-          复式 {{ chaseRed.length }}+{{ chaseBlue.length }} → {{ duplexCombos }} 注 · ¥{{ duplexCombos * 2 }}/期（未加倍）
-        </div>
+        <div v-if="poolInfo" class="duplex-info">{{ poolInfo }}</div>
       </template>
 
       <div class="params-row">
         <div class="param-item">
           <span class="param-label">计划期数</span>
-          <el-input-number v-model="periods" :min="1" :max="50" size="small" />
+          <el-input-number v-model="periods" :min="1" :max="100" size="small" />
+          <span class="param-hint">本地 {{ availableDraws }} 期</span>
         </div>
         <div class="param-item">
           <span class="param-label">起始倍数</span>
@@ -97,6 +121,12 @@
           <div class="sum-label">净收益</div>
           <div class="sum-value" :class="{ 'sum-win': totalBonus - totalCost >= 0, 'sum-lose': totalBonus - totalCost < 0 }">
             {{ totalBonus - totalCost >= 0 ? '+' : '' }}¥{{ totalBonus - totalCost }}
+          </div>
+        </div>
+        <div class="sum-card">
+          <div class="sum-label">收益率</div>
+          <div class="sum-value" :class="{ 'sum-win': roi >= 0, 'sum-lose': roi < 0 }">
+            {{ roi >= 0 ? '+' : '' }}{{ roi.toFixed(1) }}%
           </div>
         </div>
         <div class="sum-card">
@@ -148,6 +178,31 @@
         回测口径：按官方历史开奖逐期核对（最新一期起向前回溯）；奖金按固定奖级规则计算，浮动奖（一等奖/二等奖等按奖池浮动）以单注基础奖金估算。理性购彩，量力而行。
       </div>
     </template>
+
+    <el-dialog v-model="importVisible" title="从自选号导入" width="92%">
+      <div v-if="!savedPicksView.length" class="dim" style="font-size: 13px; line-height: 1.8">
+        当前彩种还没有保存的自选号。请先在「选号 → 自选号」页保存号码，再回来导入追号。
+      </div>
+      <div v-else class="import-list">
+        <div v-for="row in savedPicksView" :key="row.pick.id" class="import-item">
+          <div class="import-item-info">
+            <div class="import-item-date">{{ fmtSavedTime(row.pick.savedAt) }}<span v-if="row.total > 1" class="dim"> · 共 {{ row.total }} 注</span></div>
+            <div class="import-line">
+              <template v-if="row.first && row.first.digits">
+                <span v-for="(dv, di) in row.first.digits" :key="'d' + di" class="ball ball-red ball-xs">{{ dv }}</span>
+                <span v-if="row.first.tail != null" class="ball ball-blue ball-xs">{{ row.first.tail }}</span>
+              </template>
+              <template v-else-if="row.first">
+                <span v-for="n in row.first.red" :key="'r' + n" class="ball ball-red ball-xs">{{ pad2(n) }}</span>
+                <span v-for="(b, bi) in row.first.blue" :key="'b' + bi" class="ball ball-blue ball-xs">{{ pad2(b) }}</span>
+              </template>
+              <span v-else class="dim">号码数据异常</span>
+            </div>
+          </div>
+          <el-button size="small" type="primary" :disabled="!row.first" @click="importPick(row.pick)">追号</el-button>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -156,6 +211,8 @@ import { ref, computed } from 'vue'
 import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { pad2 } from '../utils/game-config'
 import { checkTicket } from '../utils/prize-check'
+import { expandTicket, calcPlay } from '../utils/picker-engine'
+import { get, STORE_PICKS } from '../utils/db'
 
 const props = defineProps({
   draws: { type: Array, required: true },
@@ -174,9 +231,77 @@ const startMulti = ref(1)
 const strategy = ref('fixed')
 const stopOnWin = ref(true)
 
+/** 本地已加载的开奖期数（回测实际期数 = min(计划期数, 该值)） */
+const availableDraws = computed(() => (Array.isArray(props.draws) ? props.draws.length : 0))
+
 const result = ref([])
 
+// ===== 从已保存的自选号导入追号 =====
+const importVisible = ref(false)
+const savedPicks = ref([])
+const importedTicket = ref(null)
+const importedSavedAt = ref('')
+
+/** 自选号保存时间格式化 */
+function fmtSavedTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const p = (x) => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
+/** 导入票展开后的逐注（用于展示与注数） */
+const importedLines = computed(() => (importedTicket.value ? expandTicket(props.cfg, importedTicket.value) : []))
+const importedTotal = computed(() => importedLines.value.length)
+const importedPreview = computed(() => importedLines.value.slice(0, 8))
+const importedTypeLabel = computed(() => {
+  const t = importedTicket.value
+  if (!t) return ''
+  return { single: '单式', duplex: '复式', multi: '多注', danTuo: '胆拖' }[t.type] || '单式'
+})
+
+/** 自选号列表预览（每个取首注） */
+const savedPicksView = computed(() =>
+  savedPicks.value.map((p) => {
+    const lines = p && p.ticket ? expandTicket(props.cfg, p.ticket) : []
+    return { pick: p, first: lines[0] || null, total: lines.length }
+  })
+)
+
+/** 打开导入弹窗并读取当前彩种的自选号 */
+async function openImport() {
+  try {
+    const raw = await get(STORE_PICKS, 'lottery-picker-mypicks-' + props.cfg.key)
+    savedPicks.value = Array.isArray(raw) ? raw : []
+  } catch (e) {
+    savedPicks.value = []
+  }
+  importVisible.value = true
+}
+
+/** 导入一注自选号并立即回测 */
+function importPick(p) {
+  if (!p || !p.ticket) {
+    ElMessage.warning('该自选号数据异常，无法导入')
+    return
+  }
+  // 深拷贝为纯对象（同时规避 reactive Proxy）
+  importedTicket.value = JSON.parse(JSON.stringify(p.ticket))
+  importedSavedAt.value = fmtSavedTime(p.savedAt)
+  importVisible.value = false
+  runSim()
+  ElMessage.success('已导入自选号，开始追号回测')
+}
+
+/** 取消导入，回到手动选号 */
+function clearImport() {
+  importedTicket.value = null
+  importedSavedAt.value = ''
+  result.value = []
+}
+
 const validSel = computed(() => {
+  if (importedTicket.value) return true
   if (isDirect.value) {
     return props.cfg.digits.every((d, di) => chaseDigits.value[di] != null)
   }
@@ -201,6 +326,21 @@ const duplexCombos = computed(() => {
   return combosCount(chaseRed.value.length, props.cfg.redCount) * combosCount(chaseBlue.value.length, props.cfg.blueCount)
 })
 
+/** 选区信息提示：注数 / 每期金额，且反映「起始倍数」（旧文案写死"未加倍"、只显示单倍价，误导） */
+const poolInfo = computed(() => {
+  if (isDirect.value) return ''
+  const r = chaseRed.value.length
+  const b = chaseBlue.value.length
+  if (r < props.cfg.redCount || b < props.cfg.blueCount) return ''
+  const combos = duplexCombos.value
+  const base = combos * 2
+  const kind = isDuplex.value ? '复式' : '单式'
+  if (startMulti.value > 1) {
+    return `${kind} ${r}+${b} → ${combos} 注 · 起始 ${startMulti.value} 倍（首期 ¥${base * startMulti.value}/期）`
+  }
+  return `${kind} ${r}+${b} → ${combos} 注 · ¥${base}/期（未加倍）`
+})
+
 function toggleRed(n) {
   chaseRed.value = chaseRed.value.includes(n) ? chaseRed.value.filter((x) => x !== n) : [...chaseRed.value, n].sort((a, b) => a - b)
 }
@@ -213,6 +353,7 @@ function randInt(min, max) {
 }
 
 function randomPick() {
+  if (importedTicket.value) clearImport() // 手动随机时退出导入状态
   if (isDirect.value) {
     props.cfg.digits.forEach((d, di) => {
       chaseDigits.value[di] = randInt(0, d.max)
@@ -251,32 +392,39 @@ function multipleAt(idx) {
   }
 }
 
+/** 当前参与回测的票：优先用导入的自选号，否则按选区构造 */
+function activeTicket() {
+  if (importedTicket.value) return importedTicket.value
+  if (isDirect.value) {
+    return { type: 'single', digits: chaseDigits.value.map((v) => (v == null ? 0 : v)), tail: chaseTail.value != null ? chaseTail.value : undefined }
+  }
+  return isDuplex.value
+    ? { type: 'duplex', red: [...chaseRed.value], blue: [...chaseBlue.value] }
+    : { type: 'single', red: [...chaseRed.value], blue: [...chaseBlue.value] }
+}
+
 function runSim() {
   if (!validSel.value) {
     ElMessage.warning('请先选择完整的追号号码')
     return
   }
-  const ticket = isDirect.value
-    ? { type: 'single', digits: chaseDigits.value.map((v) => (v == null ? 0 : v)), tail: chaseTail.value != null ? chaseTail.value : undefined }
-    : isDuplex.value
-      ? { type: 'duplex', red: [...chaseRed.value], blue: [...chaseBlue.value] }
-      : { type: 'single', red: [...chaseRed.value], blue: [...chaseBlue.value] }
-
-  const perTicketCost = isDirect.value ? 2 : duplexCombos.value * 2
-
+  const ticket = activeTicket()
   const total = props.draws.length
   if (!total) {
     ElMessage.warning('暂无开奖数据，请先刷新数据')
     return
   }
   const n = Math.min(periods.value, total)
+  if (n < periods.value) ElMessage.info(`本地仅有 ${total} 期开奖数据，本次按 ${n} 期回测`)
   const rows = []
   let cum = 0
   for (let i = 0; i < n; i++) {
     const draw = props.draws[i]
     const multiple = multipleAt(i)
-    const cost = multiple * perTicketCost
     const t = { ...ticket, multiple }
+    // 每期投入：任意玩法（单式/多注/复式/胆拖/直选）统一按 calcPlay 计金额（已含倍数）
+    const cost = calcPlay(props.cfg, t).amount
+    // 每期奖金：checkTicket 按玩法展开逐注核对，并对单注奖金乘倍数
     const res = checkTicket(props.cfg, t, draw)
     const bonus = res.bonus || 0
     cum += bonus - cost
@@ -301,6 +449,12 @@ function runSim() {
 
 const totalCost = computed(() => result.value.reduce((s, r) => s + r.cost, 0))
 const totalBonus = computed(() => result.value.reduce((s, r) => s + r.bonus, 0))
+/** 收益率（ROI）= 净收益 ÷ 总投入 × 100% */
+const roi = computed(() => {
+  const cost = totalCost.value
+  if (!cost) return 0
+  return ((totalBonus.value - cost) / cost) * 100
+})
 const winCount = computed(() => result.value.filter((r) => r.bonus > 0).length)
 const hitCount = computed(() => result.value.filter((r) => r.level > 0).length)
 </script>
@@ -391,6 +545,12 @@ const hitCount = computed(() => result.value.filter((r) => r.level > 0).length)
 .param-label {
   font-size: 12px;
   color: var(--text-dim);
+}
+
+.param-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.85;
 }
 
 .summary-row {
@@ -494,5 +654,65 @@ const hitCount = computed(() => result.value.filter((r) => r.level > 0).length)
   .summary-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .sum-card { padding: 10px 12px; }
   .table-wrap { max-height: 360px; }
+}
+
+/* ===== 从自选号导入 ===== */
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.import-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.import-banner {
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(246, 196, 83, 0.06);
+  margin-bottom: 12px;
+}
+.import-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.import-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.import-line-no {
+  width: 18px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.import-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+}
+.import-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.import-item-date {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
 }
 </style>

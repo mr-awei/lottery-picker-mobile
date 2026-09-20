@@ -348,7 +348,7 @@ import { ElMessage } from 'element-plus/es/components/message/index.mjs'
 import { pad2 } from '../utils/game-config'
 import { expandTicket, scoreTicketPlay, computeDirectStats, computeStats, scoreDigits } from '../utils/picker-engine'
 import { filterByConditions, oddEvenOptions, bigSmallOptions } from '../utils/filter'
-import { WHEELING_TABLE, getFormulasForPool, applyWheeling } from '../utils/wheeling'
+import { isWheelingSupported, getFormulasForPool, applyWheeling } from '../utils/wheeling'
 import { checkTicketHistory, checkTicketHistoryMulti } from '../utils/prize-check'
 import { isRecentDuplicate } from '../utils/picks-fingerprint'
 import { get, set, STORE_PICKS } from '../utils/db'
@@ -395,7 +395,7 @@ const wheelFormulaIdx = ref(0)
 const wheelGenerated = ref(false)
 
 const wheelSupported = computed(() => {
-  return !!WHEELING_TABLE[props.cfg.key] && WHEELING_TABLE[props.cfg.key].length > 0
+  return isWheelingSupported(props.cfg.key)
 })
 
 const availableFormulas = computed(() => {
