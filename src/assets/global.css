@@ -270,6 +270,8 @@ body {
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 2px;
+  /* 原生吸附：可吸附到按钮，且浏览器会把首个/末个按钮的吸附位钳制到两端，因此能滑到最前/最后 */
+  scroll-snap-type: x proximity;
 }
 .game-switch::-webkit-scrollbar { display: none; }
 
@@ -286,6 +288,7 @@ body {
   min-height: var(--chip-h);
   white-space: nowrap;
   flex-shrink: 0;
+  scroll-snap-align: center;
   transition: all var(--dur-base) var(--ease-out);
   box-shadow: var(--shadow-1);
 }

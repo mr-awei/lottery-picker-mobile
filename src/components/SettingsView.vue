@@ -111,7 +111,7 @@
       <div v-if="changelogLoading" class="changelog-list dim">更新公告加载中…</div>
       <div v-else-if="changelogError" class="changelog-list changelog-err">{{ changelogError }}</div>
       <div v-else class="changelog-list">
-        <div v-for="ver in changelog" :key="ver.version" class="changelog-item">
+        <div v-for="ver in latestChangelog" :key="ver.version" class="changelog-item">
           <div class="changelog-head">
             <span class="changelog-version">v{{ ver.version }}</span>
             <span class="changelog-date dim">{{ ver.date }} · {{ ver.title }}</span>
@@ -467,6 +467,8 @@ async function refreshAccelBackend() {
 const changelog = ref([])
 const changelogLoading = ref(true)
 const changelogError = ref('')
+/** 只展示最新一版更新说明（changelog.json 按版本倒序，取首条即可） */
+const latestChangelog = computed(() => (Array.isArray(changelog.value) ? changelog.value.slice(0, 1) : []))
 
 async function loadChangelog() {
   changelogLoading.value = true

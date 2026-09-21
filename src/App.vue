@@ -271,27 +271,6 @@ function scrollActiveGameIntoView() {
   }
 }
 
-function snapGameSwitch() {
-  const el = gameSwitchEl.value
-  if (!el) return
-  const btns = el.querySelectorAll('button')
-  if (!btns.length) return
-  const center = el.scrollLeft + el.clientWidth / 2
-  let best = btns[0]
-  let bestDist = Infinity
-  btns.forEach((b) => {
-    const d = Math.abs(b.offsetLeft + b.offsetWidth / 2 - center)
-    if (d < bestDist) {
-      bestDist = d
-      best = b
-    }
-  })
-  el.scrollTo({
-    left: best.offsetLeft - (el.clientWidth - best.offsetWidth) / 2,
-    behavior: 'smooth'
-  })
-}
-
 async function refreshAll() {
   refreshing.value = true
   // 修复（1.8.3）：8 彩种并发刷新易触发官方接口限流（Connection reset/429），改为串行
@@ -376,8 +355,6 @@ onMounted(async () => {
 
   updateNextDrawText()
   scrollActiveGameIntoView()
-  gameSwitchEl.value?.addEventListener('scrollend', snapGameSwitch)
-  gameSwitchEl.value?.addEventListener('touchend', snapGameSwitch)
   timer = setInterval(autoTick, 60000)
   window.addEventListener('lp-auto-refresh-change', onAutoRefreshChange)
   // stale-while-revalidate：后台静默刷新成功后更新当前彩种数据
@@ -392,8 +369,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
-  gameSwitchEl.value?.removeEventListener('scrollend', snapGameSwitch)
-  gameSwitchEl.value?.removeEventListener('touchend', snapGameSwitch)
   window.removeEventListener('lp-auto-refresh-change', onAutoRefreshChange)
   window.removeEventListener('lp-db-ready', onDbReady)
 })
